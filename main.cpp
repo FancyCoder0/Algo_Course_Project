@@ -1,5 +1,9 @@
 #include <bits/stdc++.h>
+
 using namespace std;
+
+#define DELETE -2
+#define NOT_MATCH -1
 
 const int MAX_NODE = 110, MAX_EDGE = 1110, INF = int(1e9);
 
@@ -113,21 +117,79 @@ struct graph {
 
 graph origin, target;
 
+
 namespace KM {
-    int get() {
-        // todo
-        return 0;
-    }
+		int lenx,leny;
+		int w[MAX_NODE][MAX_NODE]; 
+		int slack[MAX_NODE],lx[MAX_NODE],ly[MAX_NODE],maty[MAX_NODE];  
+		bool vx[MAX_NODE],vy[MAX_NODE]; //S集合、Y集合   
+		 
+		bool search(int u) {  
+		    int i,t;  
+		    vx[u]=1;  
+		    for(i=0;i<leny;++i)  
+		        if(!vy[i]) {  
+		            t=lx[u]+ly[i]-w[u][i];  
+		            if (t==0) {  
+		                vy[i]=1;  
+		                if(maty[i]==-1||search(maty[i])){  
+		                    maty[i]=u;  
+		                    return 1;  
+		                }  
+		            }  
+		            else if(slack[i]>t)  
+		                slack[i]=t;  
+		        }  
+		    return 0;  
+		}  
+		int get() {
+		    int i,j,ans=0;  
+		    for(i=0;i<lenx;++i)  
+		        for(lx[i]=-INF,j=0;j<leny;++j)  
+		            lx[i]=max(lx[i],w[i][j]);  
+		    memset(maty,-1,sizeof(maty));  
+		    memset(ly,0,sizeof(ly));  
+		    for(i=0;i<lenx;++i) { //找增广路 
+		        for(j=0;j<leny;++j)  
+		            slack[j]=INF;  
+		        while(1) {  
+		            memset(vx,0,sizeof(vx));  
+		            memset(vy,0,sizeof(vy));  
+		            if(search(i))//找到i对应的增广路，不再找  
+		                break;  
+		            //没找到增广路，修正  
+		            int d=INF;  
+		            for(j=0;j<leny;++j)  
+		                if(!vy[j]&&d>slack[j])  
+		                    d=slack[j];  
+		            for(j=0;j<lenx;++j)  
+		                if(vx[j])  
+		                    lx[j]-=d;  
+		            for(j=0;j<leny;++j)  
+		                if(vy[j])  
+		                    ly[j]+=d;  
+		        }  
+		    }  
+		    for(i=0;i<leny;++i)  
+		        if(maty[i]!=-1)  
+		            ans+=w[maty[i]][i];  
+		    return ans;  
+		}
+
+		void init() {
+			lenx = 0;
+			leny = 0;
+		}
 };
 
 struct answer {
     int cur_cost, eval_cost;
-    vector<int> match; // match: default: 0, empty: -1, other: 1-n
+    vector<int> match; // match: NOT_MATCH: -1, DELETE: -2, other: 0 ~ n - 1
     vector<int> target_map; // for each node in target graph mark the matched node's index in origin graph.
 
     bool finish() {
         for (int p = 0; p < match.size(); ++p) {
-            if (match[p] == 0) {
+            if (match[p] == NOT_MATCH) {
                 return false;
             }
         }
@@ -135,10 +197,25 @@ struct answer {
     }
 
     void upd_eval_cost() {
-        // todo
-
         // Build the KM graph
-        
+        KM::init();
+        vector<int> target_not_match_list;
+
+				for (int i = 0; i < target_map.size(); ++i) {
+					if (target_map[i] == 0) {
+						KM::leny ++;
+						target_not_match_list.push_back(i);
+					}
+				}
+
+				for (int i = 0; i < match.size(); ++i) {
+					 if (match[i] == 0) {
+					 		KM::lenx ++;
+					 		for (int j = 0; j < target_not_match_list.size(); ++j) {
+					 			KM::w[KM::lenx][j + 1] = calc_edit_cost(i, target_not_match_list[j]);
+					 		}
+					 }
+				}
         // Calculate the KM result
         eval_cost = KM::get();
     }
@@ -177,17 +254,17 @@ struct answer {
 vector<answer> get_next_list(const answer now) {
     vector<answer> v = {};
     for (int p = 0; p < now.match.size(); ++p) {
-        if (now.match[p] == 0) {
+        if (now.match[p] == NOT_MATCH) {
             auto ret = now;
 
             // p -> empty
-            ret.match[p] = -1;
-            ret.cur_cost += now.calc_edit_cost(p, -1);
+            ret.match[p] = DELETE;
+            ret.cur_cost += now.calc_edit_cost(p, DELETE);
             ret.upd_eval_cost();
             v.push_back(ret);
 
             for (int q = 0; q < now.target_map.size(); ++q) {
-                if (now.target_map[q] == 0) {
+                if (now.target_map[q] == NOT_MATCH) {
                     // p -> q
                     ret = now;
                     ret.match[p] = q;
@@ -222,7 +299,7 @@ int main(int argc, char* argv[]) {
 
     priority_queue<answer> que;
 
-    answer empty_answer = (answer) {0, 0, vector<int>((int)origin.nodes.size() + 1), vector<int>{(int)target.nodes.size() + 1}};
+    answer empty_answer = (answer) {0, 0, vector<int>((int)origin.nodes.size(), NOT_MATCH), vector<int>((int)target.nodes.size(), NOT_MATCH)};
     empty_answer.upd_eval_cost();
     que.push(empty_answer);
 
