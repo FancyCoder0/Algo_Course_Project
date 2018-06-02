@@ -24,7 +24,7 @@ struct graph {
     vector<node> nodes;
     vector<edge> edges;
     //vector<vector<int> > to_nodes; // for each node the vector contains all the edge's index.
-    vector<int> adj[101]; // for each node the vector contains all the edges.
+    vector<int> adj[MAX_NODE]; // for each node the vector contains all the edges.
     map<string, int> name_to_id;
     map<string, int> attr_str_to_id;
     void read_from_gxl(const string file) {
