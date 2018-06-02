@@ -198,6 +198,8 @@ struct answer {
 
     void upd_eval_cost() {
         // Build the KM graph
+    		// todo: not consider node -> DELETE
+
         KM::init();
         vector<int> target_not_match_list;
 
@@ -207,7 +209,6 @@ struct answer {
 						target_not_match_list.push_back(i);
 					}
 				}
-
 				for (int i = 0; i < match.size(); ++i) {
 					 if (match[i] == 0) {
 					 		KM::lenx ++;
@@ -216,6 +217,7 @@ struct answer {
 					 		}
 					 }
 				}
+
         // Calculate the KM result
         eval_cost = KM::get();
     }
