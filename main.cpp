@@ -204,9 +204,86 @@ struct answer {
         return true;
     }
 
-    int full_match_cost() {  // a solution's full cost !
+    int full_match_cost() {  
+        // a solution's full cost !
+        // full match
+        //
+        int node_sub = 0;
+        int node_del = 0;
+        int node_ins = 0;
+        int edge_sub = 0;
+        int edge_del = 0;
+        int edge_ins = 0;
 
         for (int i = 0; i < match.size(); i++)
+        {
+            if (match[i] == NOT_MATCH) return NOT_MATCH;
+            if (match[i] == DELETE) 
+            {
+                node_del++;
+
+                for (int j = 0; j < origin.adj[i].size(); j++)
+                {
+                    auto ed = origin.edges[origin.adj_mat[i][j]];
+                    int k = (ed.x == i) ? ed.y : ed.x;
+                    if (match[k] != DELETE || (match[k] == DELETE && i < k)) // i < k : avoid duplicated calculation
+                        edge_del++; 
+                }
+            } else 
+            {
+                node_sub++;
+
+                for (int j = 0; j < origin.adj[i].size(); j++)
+                {
+                    auto ed = origin.edges[origin.adj_mat[i][j]];
+                    int k = (ed.x == i) ? ed.y : ed.x;
+                    if (match[k] != DELETE && i < k) // i < k : avoid duplicated calculation
+                    {
+                        if (target.adj_mat[match[i]][match[k]] != 0)
+                        {
+                            // edge_sub
+                            edge_sub += (ed.attr != target.edges[target.adj_mat[match[i]][match[k]]].attr);
+                        } else  
+                            edge_del++;
+                    }
+                }
+            }
+        }
+
+        for (int i = 0; i < target_map.size(); i++)
+        {
+            if (target_map[i] == NOT_MATCH) // insert
+            {
+                node_ins++;
+                for (int j = 0; j < target.adj[i].size(); j++)
+                {
+                    auto ed = target.edges[target.adj_mat[i][j]];
+                    int k = (ed.x == i) ? ed.y : ed.x;
+
+                    if (target_map[k] != NOT_MATCH) // match - ins : insert an edge!
+                        edge_ins++; 
+                    if (target_map[k] == NOT_MATCH && i < k) // insert - insert : insert an edge !
+                        edge_ins++;
+                }
+            } else
+            {
+                //matched node
+                for (int j = 0; j < target.adj[i].size(); j++)
+                {
+                    auto ed = target.edges[target.adj_mat[i][j]];
+                    int k = (ed.x == i) ? ed.y : ed.x;
+                    
+                    if (target_map[k] != NOT_MATCH)
+                    {
+                        if (origin.adj_mat[target_map[i]][target_map[j]] == 0)  // match-match, not matched edge : edge_ins !
+                            edge_ins++;
+                    }
+                }
+            }
+        }
+
+
+        return node_sub * cost_node_sub + (node_ins + node_del) * cost_node_di + edge_sub * cost_edge_sub + (edge_ins + edge_del) * cost_edge_di;
     }
 
     void upd_eval_cost() {
@@ -322,7 +399,7 @@ struct answer {
 
                         //matched_edge++;
 
-                        if (target.edges[target.adj_mat[v][q]].attr == ed.attr)
+                        if (target.edges[target.adj_mat[v][q] - 1].attr == ed.attr) // adj_mat[v][q]-1 ...
                             pure_cost += 0;
                         else 
                             pure_cost += min(cost_edge_sub, 2 * cost_edge_di); // a matched edge , but attr is not the same : sub or del
@@ -407,6 +484,8 @@ int main(int argc, char* argv[]) {
     cost_node_di = atoi(argv[2]) * 2;
     cost_edge_sub = atoi(argv[3]) * 2;
     cost_edge_di = atoi(argv[4]) * 2;
+
+    cost_edge_sub = min(cost_edge_sub, 2 * cost_edge_di); // del-ins < sub
 
     string input1(argv[5]);
     string input2(argv[6]);
