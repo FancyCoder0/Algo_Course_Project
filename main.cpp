@@ -432,21 +432,27 @@ struct answer {
     }
 
     void print() {
-        printf("cur_cost = %d, eval_cost = %d\n", cur_cost, eval_cost);
+        printf("cur_cost = %d, eval_cost = %d, total_cost = %d\n", cur_cost, eval_cost, cur_cost + eval_cost);
         printf("Match List:");
         for(int i = 0; i < match.size(); ++i) {
             printf("%d, ", match[i]);
         }
         printf("\n");
+        /*
         printf("Target Map List:");
         for(int i = 0; i < target_map.size(); ++i) {
             printf("%d, ", target_map[i]);
         }
         printf("\n");
+        */
     }
 
-    bool operator<(const answer x) const  {
-        return cur_cost + eval_cost > x.cur_cost + x.eval_cost;
+    bool operator<(const answer& x) const  {
+        return cur_cost + eval_cost < x.cur_cost + x.eval_cost;
+    }
+    bool operator<=(const answer& x) const {
+        return cur_cost + eval_cost <= x.cur_cost + x.eval_cost;
+        // return !(x < *this);
     }
 };
 
@@ -479,6 +485,12 @@ vector<answer> get_next_list(const answer now) {
     return v;
 }
 
+struct cmp {
+    bool operator() (const answer& a, const answer& b) const {
+        return b < a; // turn to less heap.
+    }
+};
+
 int main(int argc, char* argv[]) {
     cost_node_sub = atoi(argv[1]) * 2;  // convenient for divide 2
     cost_node_di = atoi(argv[2]) * 2;
@@ -497,34 +509,41 @@ int main(int argc, char* argv[]) {
     answer final_ans;
     final_ans.cur_cost = INF;
 
-    priority_queue<answer> que;
+    priority_queue<answer, vector<answer>, cmp> que;
 
     answer empty_answer = (answer) {0, 0, vector<int>((int)origin.nodes.size(), NOT_MATCH), vector<int>((int)target.nodes.size(), NOT_MATCH)};
     empty_answer.upd_eval_cost();
     que.push(empty_answer);
 
-    return 0;
-
+    empty_answer.print();
+    /*
     while (!que.empty()) {
         auto now = que.top();
         que.pop();
 
-        if (final_ans < now) {
+        printf("now:");now.print();
+
+        if (final_ans <= now) {
             continue;
         }
 
         if (now.finish()) {
-            final_ans = now;
-            continue;
+            now.cur_cost =  now.full_match_cost();
+            now.eval_cost = 0;
+            if (now < final_ans) {
+                final_ans = now;
+            }
         }
 
         auto next_list = get_next_list(now);
         for (auto next : next_list) {
-            que.push(next);
+            if (next < final_ans) {
+                que.push(next);
+            }
         }
     }
 
-    // final_ans.print();
-
+    final_ans.print();
+    */
     return 0;
 }
