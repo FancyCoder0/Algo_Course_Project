@@ -204,6 +204,11 @@ struct answer {
         return true;
     }
 
+    int full_match_cost() {  // a solution's full cost !
+
+        for (int i = 0; i < match.size(); i++)
+    }
+
     void upd_eval_cost() {
         // Build the KM graph
     		// todo: not consider node -> DELETE
@@ -214,18 +219,18 @@ struct answer {
         vector<int> origin_not_match_list;
 
 				for (int i = 0; i < target_map.size(); ++i) {
-					if (target_map[i] == 0) {
+					if (target_map[i] == NOT_MATCH) {
 						KM::leny ++;
 						target_not_match_list.push_back(i);
 					}
 				}
 				for (int i = 0; i < match.size(); ++i) {
-					 if (match[i] == 0) {
+					 if (match[i] == NOT_MATCH) {
 					 		KM::lenx ++;
                             origin_not_match_list.push_back(i);
 
 					 		for (int j = 0; j < target_not_match_list.size(); ++j) {
-					 			KM::w[KM::lenx][j + 1] = calc_edit_cost(i, target_not_match_list[j], PREDICT_COST);
+					 			KM::w[KM::lenx - 1][j] = calc_edit_cost(i, target_not_match_list[j], PREDICT_COST);
 					 		}
 					 }
 				}
@@ -233,7 +238,7 @@ struct answer {
                 if (KM::lenx > KM::leny) {
                     for (int i = 0; i < origin_not_match_list.size(); ++i) {
                         for (int j = KM::leny + 1; j <= KM::lenx; j++)
-                            KM::w[i + 1][j] = calc_edit_cost(origin_not_match_list[i], -1, PREDICT_COST);
+                            KM::w[i][j - 1] = calc_edit_cost(origin_not_match_list[i], -1, PREDICT_COST);
                     }
                     KM::lenx = KM::leny;
                 }
@@ -242,7 +247,7 @@ struct answer {
                 if (KM::lenx < KM::leny) {
                     for (int i = 0; i < target_not_match_list.size(); ++i) {
                         for (int j = KM::lenx + 1; j <= KM::leny; j++)
-                            KM::w[j][i + 1] = calc_edit_cost(-1, target_not_match_list[i], PREDICT_COST);
+                            KM::w[j - 1][i] = calc_edit_cost(-1, target_not_match_list[i], PREDICT_COST);
                     }
                     KM::lenx = KM::leny;
                 }
@@ -264,7 +269,7 @@ struct answer {
 
         if (p == -1) {
 
-            pure_cost += cost_node_di; // delete
+            pure_cost += cost_node_di; // insert
 
             for (int k = 0; k < target.adj[q].size(); ++k) {
 
@@ -282,7 +287,7 @@ struct answer {
         } else 
         if (q == -1) {
 
-            pure_cost += cost_node_di; // insert
+            pure_cost += cost_node_di; // delete
 
             for (int k = 0; k < origin.adj[p].size(); ++k) {
 
@@ -299,7 +304,7 @@ struct answer {
             }
         } else {
 
-            pure_cost += cost_node_sub;
+            pure_cost += (origin.nodes[p].attr == target.nodes[q].attr) ? 0 : cost_node_sub;
 
             // count matched edge!
             //int matched_edge = 0;
@@ -340,15 +345,13 @@ struct answer {
                     int u = target_map[v];
                     if (origin.adj_mat[u][p] == 0)  // a matched node, but not adjacent to p, full cost
                         pure_cost += cost_edge_di; 
-                    else 
-                        //not matched node, a half cost
-                        predict_cost += cost_edge_di / 2;
-                }
+                } else 
+                    predict_cost += cost_edge_di / 2;
             }
         }
 
         if (cost_kind == PURE_COST) return pure_cost;
-        if (cost_kind == PREDICT_COST) return predict_cost;
+        if (cost_kind == PREDICT_COST) return predict_cost + pure_cost;
     }
 
     void print() {
@@ -411,7 +414,6 @@ int main(int argc, char* argv[]) {
     origin.read_from_gxl(input1);
     target.read_from_gxl(input2);
 
-    return 0;
 
     answer final_ans;
     final_ans.cur_cost = INF;
@@ -421,6 +423,8 @@ int main(int argc, char* argv[]) {
     answer empty_answer = (answer) {0, 0, vector<int>((int)origin.nodes.size(), NOT_MATCH), vector<int>((int)target.nodes.size(), NOT_MATCH)};
     empty_answer.upd_eval_cost();
     que.push(empty_answer);
+
+    return 0;
 
     while (!que.empty()) {
         auto now = que.top();
