@@ -4,6 +4,8 @@ using namespace std;
 
 #define DELETE -2
 #define NOT_MATCH -1
+#define PURE_COST 0
+#define PREDICT_COST 1
 
 const int MAX_NODE = 110, MAX_EDGE = 1110, INF = int(1e9);
 
@@ -223,7 +225,7 @@ struct answer {
                             origin_not_match_list.push_back(i);
 
 					 		for (int j = 0; j < target_not_match_list.size(); ++j) {
-					 			KM::w[KM::lenx][j + 1] = calc_edit_cost(i, target_not_match_list[j]);
+					 			KM::w[KM::lenx][j + 1] = calc_edit_cost(i, target_not_match_list[j], PREDICT_COST);
 					 		}
 					 }
 				}
@@ -231,7 +233,7 @@ struct answer {
                 if (KM::lenx > KM::leny) {
                     for (int i = 0; i < origin_not_match_list.size(); ++i) {
                         for (int j = KM::leny + 1; j <= KM::lenx; j++)
-                            KM::w[i + 1][j] = calc_edit_cost(origin_not_match_list[i], -1);
+                            KM::w[i + 1][j] = calc_edit_cost(origin_not_match_list[i], -1, PREDICT_COST);
                     }
                     KM::lenx = KM::leny;
                 }
@@ -240,7 +242,7 @@ struct answer {
                 if (KM::lenx < KM::leny) {
                     for (int i = 0; i < target_not_match_list.size(); ++i) {
                         for (int j = KM::lenx + 1; j <= KM::leny; j++)
-                            KM::w[j][i + 1] = calc_edit_cost(-1, target_not_match_list[i]);
+                            KM::w[j][i + 1] = calc_edit_cost(-1, target_not_match_list[i], PREDICT_COST);
                     }
                     KM::lenx = KM::leny;
                 }
@@ -249,16 +251,20 @@ struct answer {
         eval_cost = KM::get();
     }
 
-    int calc_edit_cost(const int p, const int q) const { 
+    int calc_edit_cost(const int p, const int q, const int cost_kind) const { 
         // p = -1 (insert q) 
         // q = -1 (delete p)
         // p != -1 and q != -1 (p -> q mapping)
+        // cost_kind : a) PURE_COST b) PREDICT_COST
+        // PURE_COST : only count the known edge : two nodes are both known 
+        // PREDICT_COST : consider potential cost
 
-        int ret = 0;
+        int pure_cost = 0;
+        int predict_cost = 0;
 
         if (p == -1) {
 
-            ret += cost_node_di;
+            pure_cost += cost_node_di; // delete
 
             for (int k = 0; k < target.adj[q].size(); ++k) {
 
@@ -267,16 +273,16 @@ struct answer {
 
                 if (target_map[v] == NOT_MATCH) {
                     // if adjacent node has not been matched, assign a half 'edge_insert' cost to current node
-                    ret += cost_edge_di / 2;
+                    predict_cost += cost_edge_di / 2;
                 } else {
-                    // if adjacent node has been matched, assign all 'edge_insert' cost to current node
-                    ret += cost_edge_di;
+                    // if adjacent node has been matched or delete, assign all 'edge_insert' cost to current node
+                    pure_cost += cost_edge_di;
                 }
             }
         } else 
         if (q == -1) {
 
-            ret += cost_node_di;
+            pure_cost += cost_node_di; // insert
 
             for (int k = 0; k < origin.adj[p].size(); ++k) {
 
@@ -285,19 +291,19 @@ struct answer {
 
                 if (match[v] == NOT_MATCH) {
                     // if adjacent node has not been matched, assign a half 'edge_delete' cost to current node
-                    ret += cost_edge_di / 2;
+                    predict_cost += cost_edge_di / 2;
                 } else {
                     // if adjacent node has been matched, assign all 'edge_delete' cost to current node
-                    ret += cost_edge_di;
+                    pure_cost += cost_edge_di;
                 }
             }
         } else {
 
-            ret += cost_node_sub;
+            pure_cost += cost_node_sub;
 
             // count matched edge!
-            int matched_edge = 0;
-            int matched_edge_cost = 0;
+            //int matched_edge = 0;
+            //int matched_edge_cost = 0;
 
             for (int k = 0; k < origin.adj[p].size(); ++k) { // scan p's adjacent edge.
                 auto ed = origin.edges[origin.adj[p][k]];
@@ -307,22 +313,22 @@ struct answer {
 
                     int v = match[u]; // v : u's match node
 
-                    if (target.adj_mat[v][q] != 0) { // v is adjacent to q : find a matched edge!
+                    if (v != DELETE && target.adj_mat[v][q] != 0) { // v is adjacent to q : find a matched edge!
 
-                        matched_edge++;
+                        //matched_edge++;
 
                         if (target.edges[target.adj_mat[v][q]].attr == ed.attr)
-                            matched_edge_cost += 0;
+                            pure_cost += 0;
                         else 
-                            matched_edge_cost += min(cost_edge_sub, 2 * cost_edge_di); // a matched edge , but attr is not the same : sub or del
+                            pure_cost += min(cost_edge_sub, 2 * cost_edge_di); // a matched edge , but attr is not the same : sub or del
 
                     } else {
                         // adjacent to a matched node, but have to delete edge : full cost 
-                        ret += cost_edge_di;
+                        pure_cost += cost_edge_di;
                     }
                 } else 
                     // not matched edge -> delete : a half cost
-                    ret += cost_edge_di / 2; 
+                    predict_cost += cost_edge_di / 2; 
             }
 
             for (int k = 0; k < target.adj[q].size(); ++k) {
@@ -333,15 +339,16 @@ struct answer {
 
                     int u = target_map[v];
                     if (origin.adj_mat[u][p] == 0)  // a matched node, but not adjacent to p, full cost
-                        ret += cost_edge_di; 
+                        pure_cost += cost_edge_di; 
                     else 
                         //not matched node, a half cost
-                        ret += cost_edge_di / 2;
+                        predict_cost += cost_edge_di / 2;
                 }
             }
         }
 
-        return ret;
+        if (cost_kind == PURE_COST) return pure_cost;
+        if (cost_kind == PREDICT_COST) return predict_cost;
     }
 
     void print() {
@@ -371,7 +378,7 @@ vector<answer> get_next_list(const answer now) {
 
             // p -> empty
             ret.match[p] = DELETE;
-            ret.cur_cost += now.calc_edit_cost(p, DELETE);
+            ret.cur_cost += now.calc_edit_cost(p, -1, PURE_COST); // delete cost
             ret.upd_eval_cost();
             v.push_back(ret);
 
@@ -381,7 +388,7 @@ vector<answer> get_next_list(const answer now) {
                     ret = now;
                     ret.match[p] = q;
                     ret.target_map[q] = p;
-                    ret.cur_cost += now.calc_edit_cost(p, q);
+                    ret.cur_cost += now.calc_edit_cost(p, q, PURE_COST); // subtitute cost
                     ret.upd_eval_cost();
                     v.push_back(ret);
                 }
