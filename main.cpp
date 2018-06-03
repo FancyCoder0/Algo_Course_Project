@@ -68,7 +68,7 @@ struct graph {
                 }
 
 
-                int id = ++n;
+                int id = n++;
                 nodes.push_back((node){id, x});
                 name_to_id[name] = id;
 
@@ -98,7 +98,7 @@ struct graph {
                 for (; i < tmp.length(); ++i) if (tmp[i] >= '0' && tmp[i] <= '9') break;
                 for (; i < tmp.length() && tmp[i] >= '0' && tmp[i] <= '9'; i++) x = x * 10 + tmp[i] - '0';
 
-                int edge_id = ++m;
+                int edge_id = m++;
                 edges.push_back((edge){id1, id2, x});
 
                 adj[id1].push_back(edge_id);
@@ -111,7 +111,7 @@ struct graph {
 
         }
 
-        fclose(stdin);
+        //fclose(stdin);
     }
 };
 
@@ -202,6 +202,7 @@ struct answer {
 
         KM::init();
         vector<int> target_not_match_list;
+        vector<int> origin_not_match_list;
 
 				for (int i = 0; i < target_map.size(); ++i) {
 					if (target_map[i] == 0) {
@@ -212,24 +213,86 @@ struct answer {
 				for (int i = 0; i < match.size(); ++i) {
 					 if (match[i] == 0) {
 					 		KM::lenx ++;
+                            origin_not_match_list.push_back(i);
+
 					 		for (int j = 0; j < target_not_match_list.size(); ++j) {
 					 			KM::w[KM::lenx][j + 1] = calc_edit_cost(i, target_not_match_list[j]);
 					 		}
 					 }
 				}
+                //origin node -> empty
+                if (KM::lenx > KM::leny) {
+                    for (int i = 0; i < origin_not_match_list.size(); ++i) {
+                        for (int j = KM::leny + 1; j <= KM::lenx; j++)
+                            KM::w[i + 1][j] = calc_edit_cost(origin_not_match_list[i], -1);
+                    }
+                    KM::lenx = KM::leny;
+                }
+
+                //empty -> target node
+                if (KM::lenx < KM::leny) {
+                    for (int i = 0; i < target_not_match_list.size(); ++i) {
+                        for (int j = KM::lenx + 1; j <= KM::leny; j++)
+                            KM::w[j][i + 1] = calc_edit_cost(-1, target_not_match_list[i]);
+                    }
+                    KM::lenx = KM::leny;
+                }
 
         // Calculate the KM result
         eval_cost = KM::get();
     }
 
-    int calc_edit_cost(const int p, const int q) const {
-        for (int k = 0; k < origin.adj[p].size(); ++k) {
-            auto ed = origin.edges[origin.adj[p][k]];
-            // todo
-        }
-        for (int k = 0; k < target.adj[q].size(); ++k) {
-            auto ed = target.edges[target.adj[q][k]];
-            // todo
+    int calc_edit_cost(const int p, const int q) const { 
+        // p = -1 (insert q) 
+        // q = -1 (delete p)
+        // p != -1 and q != -1 (p -> q mapping)
+
+        int ret = 0;
+
+        if (p == -1) {
+
+            ret += cost_node_di;
+
+            for (int k = 0; k < target.adj[q].size(); ++k) {
+
+                auto ed = target.edges[target.adj[q][k]];
+                int v = (ed.x == q) ? ed.y : ed.x; // v : q's adjacent node 
+
+                if (target_map[v] == NOT_MATCH) {
+                    // if adjacent node has not been matched, assign a half 'edge_insert' cost to current node
+                    ret += (edge_cost_di + 1) / 2;
+                } else {
+                    // if adjacent node has been matched, assign all 'edge_insert' cost to current node
+                    ret += edge_cost_di;
+                }
+            }
+        } else 
+        if (q == -1) {
+
+            ret += cost_node_di;
+
+            for (int k = 0; k < origin.adj[p].size(); ++k) {
+
+                auto ed = origin.edges[origin.adj[p][k]];
+                int v = (ed.x == p) ? ed.y : ed.x; // v : p's adjacent node 
+
+                if (match[v] == NOT_MATCH) {
+                    // if adjacent node has not been matched, assign a half 'edge_insert' cost to current node
+                    ret += (edge_cost_di + 1) / 2;
+                } else {
+                    // if adjacent node has been matched, assign all 'edge_insert' cost to current node
+                    ret += edge_cost_di;
+                }
+            }
+        } else {
+            for (int k = 0; k < origin.adj[p].size(); ++k) {
+                auto ed = origin.edges[origin.adj[p][k]];
+                // todo
+            }
+            for (int k = 0; k < target.adj[q].size(); ++k) {
+                auto ed = target.edges[target.adj[q][k]];
+                // todo
+            }
         }
         return 0;
     }
