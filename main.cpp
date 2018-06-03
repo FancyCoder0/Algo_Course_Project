@@ -27,6 +27,10 @@ struct graph {
     vector<int> adj[MAX_NODE]; // for each node the vector contains all the edges.
     map<string, int> name_to_id;
     map<string, int> attr_str_to_id;
+
+    int adj_mat[MAX_NODE][MAX_NODE]; // adjacent matrix
+
+
     void read_from_gxl(const string file) {
 
         //freopen(file.c_str(), "r", stdin);
@@ -103,6 +107,8 @@ struct graph {
 
                 adj[id1].push_back(edge_id);
                 adj[id2].push_back(edge_id);
+
+                adj_mat[id1][id2] = adj_mat[id2][id1] = edge_id + 1; // update adjacent matrix
 
                 //debug
                 cout << "edge " << name1 << ' ' << name2 << endl;
@@ -199,6 +205,7 @@ struct answer {
     void upd_eval_cost() {
         // Build the KM graph
     		// todo: not consider node -> DELETE
+            // todo: consider node DELETE and INSERT -- add more empty node !
 
         KM::init();
         vector<int> target_not_match_list;
@@ -260,10 +267,10 @@ struct answer {
 
                 if (target_map[v] == NOT_MATCH) {
                     // if adjacent node has not been matched, assign a half 'edge_insert' cost to current node
-                    ret += (edge_cost_di + 1) / 2;
+                    ret += cost_edge_di / 2;
                 } else {
                     // if adjacent node has been matched, assign all 'edge_insert' cost to current node
-                    ret += edge_cost_di;
+                    ret += cost_edge_di;
                 }
             }
         } else 
@@ -277,24 +284,64 @@ struct answer {
                 int v = (ed.x == p) ? ed.y : ed.x; // v : p's adjacent node 
 
                 if (match[v] == NOT_MATCH) {
-                    // if adjacent node has not been matched, assign a half 'edge_insert' cost to current node
-                    ret += (edge_cost_di + 1) / 2;
+                    // if adjacent node has not been matched, assign a half 'edge_delete' cost to current node
+                    ret += cost_edge_di / 2;
                 } else {
-                    // if adjacent node has been matched, assign all 'edge_insert' cost to current node
-                    ret += edge_cost_di;
+                    // if adjacent node has been matched, assign all 'edge_delete' cost to current node
+                    ret += cost_edge_di;
                 }
             }
         } else {
-            for (int k = 0; k < origin.adj[p].size(); ++k) {
+
+            ret += cost_node_sub;
+
+            // count matched edge!
+            int matched_edge = 0;
+            int matched_edge_cost = 0;
+
+            for (int k = 0; k < origin.adj[p].size(); ++k) { // scan p's adjacent edge.
                 auto ed = origin.edges[origin.adj[p][k]];
-                // todo
+                int u = (ed.x == p) ? ed.y : ed.x; // u : p's adjacent node 
+
+                if (match[u] != NOT_MATCH) {
+
+                    int v = match[u]; // v : u's match node
+
+                    if (target.adj_mat[v][q] != 0) { // v is adjacent to q : find a matched edge!
+
+                        matched_edge++;
+
+                        if (target.edges[target.adj_mat[v][q]].attr == ed.attr)
+                            matched_edge_cost += 0;
+                        else 
+                            matched_edge_cost += min(cost_edge_sub, 2 * cost_edge_di); // a matched edge , but attr is not the same : sub or del
+
+                    } else {
+                        // adjacent to a matched node, but have to delete edge : full cost 
+                        ret += cost_edge_di;
+                    }
+                } else 
+                    // not matched edge -> delete : a half cost
+                    ret += cost_edge_di / 2; 
             }
+
             for (int k = 0; k < target.adj[q].size(); ++k) {
                 auto ed = target.edges[target.adj[q][k]];
-                // todo
+                int v = (ed.x == q) ? ed.y : ed.x; // v : p's adjacent node 
+
+                if (target_map[v] != NOT_MATCH) {
+
+                    int u = target_map[v];
+                    if (origin.adj_mat[u][p] == 0)  // a matched node, but not adjacent to p, full cost
+                        ret += cost_edge_di; 
+                    else 
+                        //not matched node, a half cost
+                        ret += cost_edge_di / 2;
+                }
             }
         }
-        return 0;
+
+        return ret;
     }
 
     void print() {
@@ -346,10 +393,10 @@ vector<answer> get_next_list(const answer now) {
 }
 
 int main(int argc, char* argv[]) {
-    cost_node_sub = atoi(argv[1]);
-    cost_node_di = atoi(argv[2]);
-    cost_edge_sub = atoi(argv[3]);
-    cost_edge_di = atoi(argv[4]);
+    cost_node_sub = atoi(argv[1]) * 2;  // convenient for divide 2
+    cost_node_di = atoi(argv[2]) * 2;
+    cost_edge_sub = atoi(argv[3]) * 2;
+    cost_edge_di = atoi(argv[4]) * 2;
 
     string input1(argv[5]);
     string input2(argv[6]);
