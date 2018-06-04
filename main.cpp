@@ -307,7 +307,13 @@ struct answer {
                             origin_not_match_list.push_back(i);
 
 					 		for (int j = 0; j < target_not_match_list.size(); ++j) {
-					 			KM::w[KM::lenx - 1][j] = calc_edit_cost(i, target_not_match_list[j], PREDICT_COST);
+                                // min - max
+					 			KM::w[KM::lenx - 1][j] = -calc_edit_cost(i, target_not_match_list[j], PREDICT_COST);
+
+
+                                //debug
+                                if (KM::lenx - 1 == j)
+                                    cout << "w[" << KM::lenx - 1 << "][" << j << "]=" << KM::w[KM::lenx - 1][j] << endl;
 					 		}
 					 }
 				}
@@ -315,7 +321,8 @@ struct answer {
                 if (KM::lenx > KM::leny) {
                     for (int i = 0; i < origin_not_match_list.size(); ++i) {
                         for (int j = KM::leny + 1; j <= KM::lenx; j++)
-                            KM::w[i][j - 1] = calc_edit_cost(origin_not_match_list[i], -1, PREDICT_COST);
+                            // min - max
+                            KM::w[i][j - 1] = -calc_edit_cost(origin_not_match_list[i], -1, PREDICT_COST);
                     }
                     KM::lenx = KM::leny;
                 }
@@ -324,13 +331,13 @@ struct answer {
                 if (KM::lenx < KM::leny) {
                     for (int i = 0; i < target_not_match_list.size(); ++i) {
                         for (int j = KM::lenx + 1; j <= KM::leny; j++)
-                            KM::w[j - 1][i] = calc_edit_cost(-1, target_not_match_list[i], PREDICT_COST);
+                            KM::w[j - 1][i] = -calc_edit_cost(-1, target_not_match_list[i], PREDICT_COST);
                     }
                     KM::lenx = KM::leny;
                 }
 
         // Calculate the KM result
-        eval_cost = KM::get();
+        eval_cost = -KM::get();
     }
 
     int calc_edit_cost(const int p, const int q, const int cost_kind) const { 
@@ -340,6 +347,8 @@ struct answer {
         // cost_kind : a) PURE_COST b) PREDICT_COST
         // PURE_COST : only count the known edge : two nodes are both known 
         // PREDICT_COST : consider potential cost
+        //
+        // VERSION 2 : predict_cost lower bound 
 
         int pure_cost = 0;
         int predict_cost = 0;
@@ -386,6 +395,13 @@ struct answer {
             // count matched edge!
             //int matched_edge = 0;
             //int matched_edge_cost = 0;
+            //
+            //
+            int deg_p = 0;
+            int deg_q = 0;
+
+            map<int, int> p_edge_set;
+            map<int, int> q_edge_set;
 
             for (int k = 0; k < origin.adj[p].size(); ++k) { // scan p's adjacent edge.
                 auto ed = origin.edges[origin.adj[p][k]];
@@ -410,7 +426,11 @@ struct answer {
                     }
                 } else 
                     // not matched edge -> delete : a half cost
-                    predict_cost += cost_edge_di / 2; 
+                    //predict_cost += cost_edge_di / 2; 
+                {
+                    deg_p ++;
+                    p_edge_set[ed.attr] += 1;
+                }
             }
 
             for (int k = 0; k < target.adj[q].size(); ++k) {
@@ -423,7 +443,26 @@ struct answer {
                     if (origin.adj_mat[u][p] == 0)  // a matched node, but not adjacent to p, full cost
                         pure_cost += cost_edge_di; 
                 } else 
-                    predict_cost += cost_edge_di / 2;
+                    //predict_cost += cost_edge_di / 2;
+                {
+                    deg_q++;
+                    q_edge_set[ed.attr] += 1;
+                }
+            }
+
+            int zero_cost_edge = 0;
+            for (auto it = p_edge_set.begin(); it != p_edge_set.end(); ++it)
+            {
+                int attr = it -> first;
+                zero_cost_edge += min(it -> second, q_edge_set[attr]);
+            }
+
+            if (deg_p > deg_q) 
+            {
+                predict_cost = (deg_q - zero_cost_edge) * cost_edge_sub + (deg_p - deg_q) * cost_edge_di;
+            } else 
+            {
+                predict_cost = (deg_p - zero_cost_edge) * cost_edge_sub + (deg_q - deg_p) * cost_edge_di;
             }
         }
 
