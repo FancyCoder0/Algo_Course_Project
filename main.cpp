@@ -3,12 +3,15 @@
 using namespace std;
 
 // #define DEBUG
+#define zdebug
 #define HEAP_OPT
 
 #define DELETE -2
 #define NOT_MATCH -1
 #define PURE_COST 0
 #define PREDICT_COST 1
+
+#define PREDICT_OPT
 
 const int MAX_NODE = 110, MAX_EDGE = 1110, INF = int(1e9), BIAS = int(1e5);
 
@@ -140,77 +143,77 @@ graph origin, target;
 
 const int Flow_V = MAX_NODE * 2 + 10, Flow_E = MAX_NODE * MAX_NODE * 2 + 100;
 namespace flow {
-int edge,S,T,N,fir[Flow_V],e[Flow_E],b[Flow_E],c[Flow_E],dis[Flow_V],de[Flow_V],w[Flow_E];
-int totflow,totcost;
-int cur[Flow_V], q[Flow_E*10];
-bool v[Flow_V],o[Flow_V];
-void init() {
-    edge = 1;
-    for (int i = 0; i < N; ++i) fir[i] = 0;
-}
-void add2(int x,int y,int z,int q) {
-    e[++edge] = y;
-    c[edge] = z;
-    w[edge] = q;
-    b[edge] = fir[x];
-    fir[x] = edge;
-}
-void add(int x,int y,int z,int q) {
-    add2(x,y,z,q);
-    add2(y,x,0,-q);
-}
-void spfa() {
-    int i,j,k,u;
-    for(int i = 0; i < N; ++i) dis[i]=INF, v[i]=0;
-    q[1]=S;
-    dis[S]=0;
-    v[S]=1;
-    for(i=j=1; u=q[i],i<=j; v[u]=0,i++)
-        for(k=fir[u]; k; k=b[k])if(c[k])
-                if(dis[u]+w[k]<dis[e[k]]) {
-                    dis[e[k]]=dis[u]+w[k];
-                    if(!v[e[k]]) {
-                        v[e[k]]=1;
-                        q[++j]=e[k];
+    int edge,S,T,N,fir[Flow_V],e[Flow_E],b[Flow_E],c[Flow_E],dis[Flow_V],de[Flow_V],w[Flow_E];
+    int totflow,totcost;
+    int cur[Flow_V], q[Flow_E*10];
+    bool v[Flow_V],o[Flow_V];
+    void init() {
+        edge = 1;
+        for (int i = 0; i < N; ++i) fir[i] = 0;
+    }
+    void add2(int x,int y,int z,int q) {
+        e[++edge] = y;
+        c[edge] = z;
+        w[edge] = q;
+        b[edge] = fir[x];
+        fir[x] = edge;
+    }
+    void add(int x,int y,int z,int q) {
+        add2(x,y,z,q);
+        add2(y,x,0,-q);
+    }
+    void spfa() {
+        int i,j,k,u;
+        for(int i = 0; i < N; ++i) dis[i]=INF, v[i]=0;
+        q[1]=S;
+        dis[S]=0;
+        v[S]=1;
+        for(i=j=1; u=q[i],i<=j; v[u]=0,i++)
+            for(k=fir[u]; k; k=b[k])if(c[k])
+                    if(dis[u]+w[k]<dis[e[k]]) {
+                        dis[e[k]]=dis[u]+w[k];
+                        if(!v[e[k]]) {
+                            v[e[k]]=1;
+                            q[++j]=e[k];
+                        }
                     }
-                }
-}
-int zkw(int i,int flow) {
-    int d, r=flow, l;
-    if(i==T) {
-        totcost+=dis[i]*flow;
-        return flow;
     }
-    v[i]=o[i]=1;
-    for(int&k=cur[i]; k; k=b[k])
-        if(c[k]) {
-            l=dis[i]+w[k]-dis[e[k]];
-            de[e[k]]=min(de[e[k]],l);
-            if(l==0&&!o[e[k]]) {
-                d=zkw(e[k],min(c[k],r));
-                c[k]-=d;
-                c[k^1]+=d;
-                r-=d;
-                if(r==0)break;
-            }
+    int zkw(int i,int flow) {
+        int d, r=flow, l;
+        if(i==T) {
+            totcost+=dis[i]*flow;
+            return flow;
         }
-    o[i]=0;
-    return flow-r;
-}
-int solve() {
-    spfa();
-    for (int i = 0; i < N; ++i) v[i] = 0, o[i] = 0;
-    totcost=totflow=0;
-    while(1) {
-        for (int i = 0; i < N; ++i) de[i]=INF, v[i]=0, cur[i]=fir[i];
-        totflow+=zkw(S,int(1e9));
-        int tmp = INF;
-        for (int i = 0; i < N; ++i) if(!v[i]) tmp=min(tmp,de[i]);
-        if(tmp ==	INF)break;
-        for (int i = 0; i < N; ++i) if(!v[i])dis[i]+=tmp;
+        v[i]=o[i]=1;
+        for(int&k=cur[i]; k; k=b[k])
+            if(c[k]) {
+                l=dis[i]+w[k]-dis[e[k]];
+                de[e[k]]=min(de[e[k]],l);
+                if(l==0&&!o[e[k]]) {
+                    d=zkw(e[k],min(c[k],r));
+                    c[k]-=d;
+                    c[k^1]+=d;
+                    r-=d;
+                    if(r==0)break;
+                }
+            }
+        o[i]=0;
+        return flow-r;
     }
-    return totcost;
-}
+    int solve() {
+        spfa();
+        for (int i = 0; i < N; ++i) v[i] = 0, o[i] = 0;
+        totcost=totflow=0;
+        while(1) {
+            for (int i = 0; i < N; ++i) de[i]=INF, v[i]=0, cur[i]=fir[i];
+            totflow+=zkw(S,int(1e9));
+            int tmp = INF;
+            for (int i = 0; i < N; ++i) if(!v[i]) tmp=min(tmp,de[i]);
+            if(tmp ==	INF)break;
+            for (int i = 0; i < N; ++i) if(!v[i])dis[i]+=tmp;
+        }
+        return totcost;
+    }
 };
 
 /*
@@ -453,6 +456,12 @@ struct answer {
         appro_sol.cur_cost = appro_sol.full_match_cost();
         appro_sol.eval_cost = 0;
 
+#ifdef zdebug
+
+        if (eval_cost + cur_cost > appro_sol.cur_cost)  
+            cerr << "fuck" << endl;
+#endif
+
 #ifdef DEBUG
         printf("appro=");
         appro_sol.print();
@@ -533,6 +542,8 @@ struct answer {
 
         int pure_cost = 0;
         int predict_cost = 0;
+		
+		cerr << "calc_edit_cost (" << p << ", " << q << ")" << endl;
 
         if (p == -1) {
 
@@ -649,7 +660,11 @@ struct answer {
         }
 
         if (cost_kind == PURE_COST) return pure_cost;
-        if (cost_kind == PREDICT_COST) return predict_cost + pure_cost;
+        if (cost_kind == PREDICT_COST) 
+		{
+			cerr << predict_cost + pure_cost << endl;
+			return predict_cost + pure_cost;
+		}
     }
 
     void print() {
@@ -761,6 +776,13 @@ int main(int argc, char* argv[]) {
             now.print();
             printf("full=%d\n",now.full_match_cost());
         }
+#endif
+
+
+#ifdef zdebug
+		if (final_ans.cur_cost <= now.cur_cost + now.eval_cost) {
+			continue;
+		}
 #endif
 
 #ifdef HEAP_OPT
