@@ -143,11 +143,10 @@ graph origin, target;
 
 const int Flow_V = MAX_NODE * 2 + 10, Flow_E = MAX_NODE * MAX_NODE * 2 + 100;
 namespace flow {
-    int edge,S,T,N,fir[Flow_V],e[Flow_E],b[Flow_E],c[Flow_E],dis[Flow_V],de[Flow_V],w[Flow_E];
+    int edge,S,T,N,fir[Flow_V],e[Flow_E],b[Flow_E],c[Flow_E],w[Flow_E],dis[Flow_V],de[Flow_V];
     int totflow,totcost;
     int cur[Flow_V], q[Flow_E*10];
     bool v[Flow_V],o[Flow_V];
-    bool end_flag;
 
     void init() {
         edge = 1;
@@ -183,11 +182,7 @@ namespace flow {
     int zkw(int i,int flow) {
         int d, r=flow, l;
         if(i==T) {
-            if (dis[i] < 0) {
-            	totcost+=dis[i]*flow;
-            } else {
-            	end_flag = 1;
-            }
+            totcost+=dis[i]*flow;
             return flow;
         }
         v[i]=o[i]=1;
@@ -210,18 +205,12 @@ namespace flow {
         spfa();
         for (int i = 0; i < N; ++i) v[i] = 0, o[i] = 0;
         totcost=totflow=0;
-      	end_flag = 0;
-        while(1) {
+        while(dis[T] < 0) {
             for (int i = 0; i < N; ++i) de[i]=INF, v[i]=0, cur[i]=fir[i];
-            totflow+=zkw(S,int(1e9));
-          	/*
-          	if (end_flag) {
-          		break;
-          	}
-          	*/
+            totflow+=zkw(S, INF);
             int tmp = INF;
             for (int i = 0; i < N; ++i) if(!v[i]) tmp=min(tmp,de[i]);
-            if(tmp ==	INF)break;
+            if(tmp == INF)break;
             for (int i = 0; i < N; ++i) if(!v[i]) dis[i]+=tmp;
         }
         return totcost;
@@ -443,10 +432,7 @@ struct answer {
             }
         }
 
-
         eval_cost = flow::solve() + flow::totflow * BIAS;
-
-        assert(flow::totflow == (lenx - 1 + leny - 1));
 
         answer appro_sol = *this;
         for (int i = 0; i < lenx - 1; ++i) {
@@ -820,6 +806,7 @@ int main(int argc, char* argv[]) {
             que.push(next);
         }
     }
+
 
     final_ans.cur_cost /= 2;
     final_ans.print();
