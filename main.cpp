@@ -2,14 +2,15 @@
 
 using namespace std;
 
-#define DEBUG
+// #define DEBUG
+#define HEAP_OPT
 
 #define DELETE -2
 #define NOT_MATCH -1
 #define PURE_COST 0
 #define PREDICT_COST 1
 
-const int MAX_NODE = 110, MAX_EDGE = 1110, INF = int(1e9);
+const int MAX_NODE = 110, MAX_EDGE = 1110, INF = int(1e9), BIAS = int(1e5);
 
 int cost_node_sub, cost_node_di, cost_edge_sub, cost_edge_di;
 
@@ -67,7 +68,9 @@ struct graph {
                     string attr_str = tmp.substr(attr_pos1, attr_pos2 - attr_pos1);
                     if (attr_str_to_id[attr_str] == 0) attr_str_to_id[attr_str] = ++k;
                     x = attr_str_to_id[attr_str];
-                    cout << "string=" << attr_str << endl;
+                    #ifdef DEBUG
+                        cout << "string=" << attr_str << endl;
+                    #endif
                 } else 
                 {
                     getline(input, tmp);
@@ -131,7 +134,64 @@ struct graph {
 
 graph origin, target;
 
+const int Flow_V = MAX_NODE * 2 + 10, Flow_E = MAX_NODE * MAX_NODE * 2 + 100;
+namespace flow{
+    int edge,S,T,N,fir[Flow_V],e[Flow_E],b[Flow_E],c[Flow_E],dis[Flow_V],de[Flow_V],w[Flow_E];
+    int totflow,totcost;
+    int cur[Flow_V], q[Flow_E*10];bool v[Flow_V],o[Flow_V];
+    void init() { edge = 1; for (int i = 0; i < N; ++i) fir[i] = 0; }
+    void add2(int x,int y,int z,int q){
+    	e[++edge] = y;
+    	c[edge] = z;
+    	w[edge] = q;
+    	b[edge] = fir[x];
+    	fir[x] = edge;
+    }
+    void add(int x,int y,int z,int q){
+    	add2(x,y,z,q);
+    	add2(y,x,0,-q);
+    }
+    void spfa(){
+        int i,j,k,u;
+        for(int i = 0; i < N; ++i) dis[i]=INF, v[i]=0;
+        q[1]=S;dis[S]=0;v[S]=1;
+        for(i=j=1;u=q[i],i<=j;v[u]=0,i++)
+        for(k=fir[u];k;k=b[k])if(c[k])
+        if(dis[u]+w[k]<dis[e[k]]){dis[e[k]]=dis[u]+w[k];if(!v[e[k]]){v[e[k]]=1;q[++j]=e[k];}}
+    }
+    int zkw(int i,int flow){
+        int d, r=flow, l;
+        if(i==T){totcost+=dis[i]*flow;return flow;}
+        v[i]=o[i]=1;
+        for(int&k=cur[i];k;k=b[k])
+        if(c[k]){
+            l=dis[i]+w[k]-dis[e[k]];
+            de[e[k]]=min(de[e[k]],l);
+            if(l==0&&!o[e[k]]){
+                d=zkw(e[k],min(c[k],r));
+                c[k]-=d;c[k^1]+=d;r-=d;
+                if(r==0)break;
+            }
+        }
+        o[i]=0;
+        return flow-r;
+    }
+    int solve(){
+        spfa();
+        for (int i = 0; i < N; ++i) v[i] = 0, o[i] = 0;
+        totcost=totflow=0;
+        while(1){
+            for (int i = 0; i < N; ++i) de[i]=INF, v[i]=0, cur[i]=fir[i];
+            totflow+=zkw(S,int(1e9));
+            int tmp = INF;	for (int i = 0; i < N; ++i) if(!v[i]) tmp=min(tmp,de[i]);
+            if(tmp ==	INF)break;
+            for (int i = 0; i < N; ++i) if(!v[i])dis[i]+=tmp;
+        }
+        return totcost;
+    }
+};
 
+/*
 namespace KM {
 		int lenx,leny;
 		int w[MAX_NODE][MAX_NODE]; 
@@ -195,6 +255,7 @@ namespace KM {
 			leny = 0;
 		}
 };
+*/
 
 struct answer {
     int cur_cost, eval_cost;
@@ -292,6 +353,94 @@ struct answer {
         return node_sub * cost_node_sub + (node_ins + node_del) * cost_node_di + edge_sub * cost_edge_sub + (edge_ins + edge_del) * cost_edge_di;
     }
 
+
+    void upd_eval_cost(answer& final_ans) {
+	    // Build the flow graph
+        vector<int> target_not_match_list;
+        vector<int> origin_not_match_list;
+        for (int i = 0; i < match.size(); ++i) {
+            if (match[i] == NOT_MATCH) {
+                origin_not_match_list.push_back(i);
+            }
+        }
+        for (int i = 0; i < target_map.size(); ++i) {
+            if (target_map[i] == NOT_MATCH) {
+                target_not_match_list.push_back(i);
+            }
+        }
+    
+        int lenx, leny;
+	    
+	    origin_not_match_list.push_back(DELETE);
+	    lenx = origin_not_match_list.size();
+
+	    target_not_match_list.push_back(DELETE);
+	    leny = target_not_match_list.size();
+
+        int x_del = lenx - 1;
+        int y_del = lenx + leny - 1;
+
+	    flow::S = lenx + leny + 1;
+	    flow::T = lenx + leny + 2;
+        flow::N = flow::T + 1;
+	    flow::init();
+
+	    for (int i = 0; i < lenx; ++i) {
+	    	flow::add(flow::S, i, (i == x_del) ? INF : 1, (i == x_del) ? 0 : -BIAS);
+	    }
+	    for (int i = 0; i < leny; ++i) {
+	    	flow::add(lenx + i, flow::T, (lenx + i == y_del) ? INF: 1, (lenx + i == y_del) ? 0 : -BIAS);
+	    }
+
+	    for (int i = 0; i < leny - 1; ++i) {
+	    	flow::add(x_del, lenx + i, INF, calc_edit_cost(-1, target_not_match_list[i], PREDICT_COST));
+	    }
+
+	    for (int i = 0; i < lenx - 1; ++i) {
+	    	flow::add(i, y_del, INF, calc_edit_cost(origin_not_match_list[i], -1, PREDICT_COST));
+	    }
+
+	    for (int i = 0; i < lenx - 1; ++i) {
+	    	for (int j = 0; j < leny - 1; ++j) {
+	    		flow::add(i, lenx + j, INF, calc_edit_cost(origin_not_match_list[i], target_not_match_list[j], PREDICT_COST));
+			}
+		}
+
+
+		eval_cost = flow::solve() + flow::totflow * BIAS;
+
+        assert(flow::totflow == (lenx - 1 + leny - 1));
+ 
+        answer appro_sol = *this;
+        for (int i = 0; i < lenx - 1; ++i) {
+            appro_sol.match[origin_not_match_list[i]] = DELETE;
+        }
+        for (int i = 0; i < lenx - 1; ++i) {
+    		for (int k = flow::fir[i]; k; k = flow::b[k]) if (flow::c[k^1]) {
+    			int j = flow::e[k] - lenx;
+    			if (j >= 0 && j < leny) {
+                    int x = origin_not_match_list[i], y = target_not_match_list[j];
+                    appro_sol.match[x] = y;
+                    if (y != DELETE) {
+                        appro_sol.target_map[y] = x;
+                    }
+    			}
+    		}
+        }
+
+    	appro_sol.cur_cost = appro_sol.full_match_cost();
+        appro_sol.eval_cost = 0;
+        
+        #ifdef DEBUG
+            printf("appro="); appro_sol.print();
+        #endif
+
+        if (appro_sol < final_ans) {
+            final_ans = appro_sol;
+        }
+        
+    }
+    /*
     void upd_eval_cost() {
         // Build the KM graph
     		// todo: not consider node -> DELETE
@@ -346,6 +495,8 @@ struct answer {
         // Calculate the KM result
         eval_cost = -KM::get();
     }
+    */
+
 
     int calc_edit_cost(const int p, const int q, const int cost_kind) const { 
         // p = -1 (insert q) 
@@ -504,6 +655,8 @@ struct answer {
     }
 };
 
+answer final_ans;
+
 vector<answer> get_next_list(const answer now) {
     vector<answer> v;
     for (int p = 0; p < now.match.size(); ++p) {
@@ -513,7 +666,7 @@ vector<answer> get_next_list(const answer now) {
             // p -> empty
             ret.match[p] = DELETE;
             ret.cur_cost += now.calc_edit_cost(p, -1, PURE_COST); // delete cost
-            ret.upd_eval_cost();
+            ret.upd_eval_cost(final_ans);
             v.push_back(ret);
 
             for (int q = 0; q < now.target_map.size(); ++q) {
@@ -523,7 +676,7 @@ vector<answer> get_next_list(const answer now) {
                     ret.match[p] = q;
                     ret.target_map[q] = p;
                     ret.cur_cost += now.calc_edit_cost(p, q, PURE_COST); // subtitute cost
-                    ret.upd_eval_cost();
+                    ret.upd_eval_cost(final_ans);
                     v.push_back(ret);
                 }
             }
@@ -532,6 +685,7 @@ vector<answer> get_next_list(const answer now) {
     }
     return v;
 }
+
 
 struct cmp {
     bool operator() (const answer& a, const answer& b) const {
@@ -554,45 +708,57 @@ int main(int argc, char* argv[]) {
     target.read_from_gxl(input2);
 
 
-    answer final_ans;
     final_ans.cur_cost = INF;
 
     priority_queue<answer, vector<answer>, cmp> que;
 
     answer empty_answer = (answer) {0, 0, vector<int>((int)origin.nodes.size(), NOT_MATCH), vector<int>((int)target.nodes.size(), NOT_MATCH)};
-    empty_answer.upd_eval_cost();
+    empty_answer.upd_eval_cost(final_ans);
     que.push(empty_answer);
-
-    // empty_answer.print();
     
+    // empty_answer.print();
+
     while (!que.empty()) {
         auto now = que.top();
         que.pop();
 
         #ifdef DEBUG
             printf("now:");now.print();
+            bool ok=1;
+            for(int i = 0; i < now.match.size(); ++i) {
+                if (now.match[i] != NOT_MATCH)
+                    if (now.match[i] != i) {
+                        ok = 0;
+                    }
+            }
+            if (ok) {
+                printf("now:");now.print();printf("full=%d\n",now.full_match_cost());
+            }
         #endif
 
-        if (final_ans <= now) {
+        #ifdef HEAP_OPT
+        if (final_ans.cur_cost <= now.cur_cost) {
             continue;
         }
-
+        #endif
+        
+        
         if (now.finish()) {
-            now.cur_cost =  now.full_match_cost();
-            now.eval_cost = 0;
+            // now.cur_cost =  now.full_match_cost();
+            // now.eval_cost = 0;
             if (now < final_ans) {
                 final_ans = now;
             }
         }
+        
 
         auto next_list = get_next_list(now);
         for (auto next : next_list) {
-            if (next < final_ans) {
-                que.push(next);
-            }
+            que.push(next);
         }
     }
 
+    final_ans.cur_cost /= 2;
     final_ans.print();
     
     return 0;
