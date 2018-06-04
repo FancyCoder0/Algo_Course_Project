@@ -147,6 +147,8 @@ namespace flow {
     int totflow,totcost;
     int cur[Flow_V], q[Flow_E*10];
     bool v[Flow_V],o[Flow_V];
+    bool end_flag;
+
     void init() {
         edge = 1;
         for (int i = 0; i < N; ++i) fir[i] = 0;
@@ -181,7 +183,11 @@ namespace flow {
     int zkw(int i,int flow) {
         int d, r=flow, l;
         if(i==T) {
-            totcost+=dis[i]*flow;
+            if (dis[i] < 0) {
+            	totcost+=dis[i]*flow;
+            } else {
+            	end_flag = 1;
+            }
             return flow;
         }
         v[i]=o[i]=1;
@@ -204,13 +210,19 @@ namespace flow {
         spfa();
         for (int i = 0; i < N; ++i) v[i] = 0, o[i] = 0;
         totcost=totflow=0;
+      	end_flag = 0;
         while(1) {
             for (int i = 0; i < N; ++i) de[i]=INF, v[i]=0, cur[i]=fir[i];
             totflow+=zkw(S,int(1e9));
+          	/*
+          	if (end_flag) {
+          		break;
+          	}
+          	*/
             int tmp = INF;
             for (int i = 0; i < N; ++i) if(!v[i]) tmp=min(tmp,de[i]);
             if(tmp ==	INF)break;
-            for (int i = 0; i < N; ++i) if(!v[i])dis[i]+=tmp;
+            for (int i = 0; i < N; ++i) if(!v[i]) dis[i]+=tmp;
         }
         return totcost;
     }
