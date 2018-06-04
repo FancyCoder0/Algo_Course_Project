@@ -471,6 +471,8 @@ struct answer {
             {
                 predict_cost = (deg_p - zero_cost_edge) * cost_edge_sub + (deg_q - deg_p) * cost_edge_di;
             }
+
+            predict_cost /= 2;
         }
 
         if (cost_kind == PURE_COST) return pure_cost;
