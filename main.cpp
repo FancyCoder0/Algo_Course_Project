@@ -279,7 +279,7 @@ struct answer {
                     
                     if (target_map[k] != NOT_MATCH)
                     {
-                        if (origin.adj_mat[target_map[i]][target_map[j]] == 0)  // match-match, not matched edge : edge_ins !
+                        if (origin.adj_mat[target_map[i]][target_map[k]] == 0)  // match-match, not matched edge : edge_ins !
                             edge_ins++;
                     }
                 }
