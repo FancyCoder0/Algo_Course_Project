@@ -3,7 +3,6 @@
 using namespace std;
 
 // #define DEBUG
-#define zdebug
 #define HEAP_OPT
 
 #define DELETE -2
@@ -432,7 +431,9 @@ struct answer {
             }
         }
 
-        eval_cost = flow::solve() + flow::totflow * BIAS;
+        eval_cost = flow::solve() + (lenx - 1 + leny - 1) * BIAS;
+
+        assert(eval_cost >= 0);
 
         answer appro_sol = *this;
         for (int i = 0; i < lenx - 1; ++i) {
@@ -453,12 +454,6 @@ struct answer {
 
         appro_sol.cur_cost = appro_sol.full_match_cost();
         appro_sol.eval_cost = 0;
-
-#ifdef zdebug
-
-        if (eval_cost + cur_cost > appro_sol.cur_cost)  
-            cerr << "fuck" << endl;
-#endif
 
 #ifdef DEBUG
         printf("appro=");
@@ -541,7 +536,7 @@ struct answer {
         int pure_cost = 0;
         int predict_cost = 0;
 		
-		cerr << "calc_edit_cost (" << p << ", " << q << ")" << endl;
+				// cerr << "calc_edit_cost (" << p << ", " << q << ")" << endl;
 
         if (p == -1) {
 
@@ -658,11 +653,8 @@ struct answer {
         }
 
         if (cost_kind == PURE_COST) return pure_cost;
-        if (cost_kind == PREDICT_COST) 
-		{
-			cerr << predict_cost + pure_cost << endl;
-			return predict_cost + pure_cost;
-		}
+        if (cost_kind == PREDICT_COST) return predict_cost + pure_cost;
+        return INF;
     }
 
     void print() {
@@ -779,30 +771,32 @@ int main(int argc, char* argv[]) {
 #endif
 
 
-#ifdef zdebug
-		if (final_ans.cur_cost <= now.cur_cost + now.eval_cost) {
-			continue;
-		}
-#endif
 
 #ifdef HEAP_OPT
-        if (final_ans.cur_cost <= now.cur_cost) {
+        if (final_ans <= now) {
             continue;
         }
 #endif
 
-
         if (now.finish()) {
-            // now.cur_cost =  now.full_match_cost();
-            // now.eval_cost = 0;
+        		if (now.cur_cost != now.full_match_cost()) {
+        			printf("%d\n", now.full_match_cost());
+        			now.print();
+        		}
+        		assert(now.cur_cost == now.full_match_cost());
+        		assert(now.eval_cost == 0);
             if (now < final_ans) {
                 final_ans = now;
             }
         }
 
-
         auto next_list = get_next_list(now);
         for (auto next : next_list) {
+#ifdef HEAP_OPT
+		        if (final_ans <= next) {
+		            continue;
+		        }
+#endif
             que.push(next);
         }
     }
