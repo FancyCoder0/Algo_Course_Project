@@ -2,6 +2,8 @@
 
 using namespace std;
 
+#define DEBUG
+
 #define DELETE -2
 #define NOT_MATCH -1
 #define PURE_COST 0
@@ -78,9 +80,10 @@ struct graph {
                 nodes.push_back((node){id, x});
                 name_to_id[name] = id;
 
-                //debug
-                cout << "node " << id << ' ' << name << endl;
-                cout << "attr " << x << endl;
+                #ifdef DEBUG
+                    cout << "node " << id << ' ' << name << endl;
+                    cout << "attr " << x << endl;
+                #endif
             }
 
             if (tmp.substr(1, 4) == "edge") {
@@ -112,9 +115,10 @@ struct graph {
 
                 adj_mat[id1][id2] = adj_mat[id2][id1] = edge_id + 1; // update adjacent matrix
 
-                //debug
-                cout << "edge " << name1 << ' ' << name2 << endl;
-                cout << "attr " << x << endl;
+                #ifdef DEBUG
+                    cout << "edge " << name1 << ' ' << name2 << endl;
+                    cout << "attr " << x << endl;
+                #endif
             }
 
         }
@@ -311,9 +315,10 @@ struct answer {
 					 			KM::w[KM::lenx - 1][j] = -calc_edit_cost(i, target_not_match_list[j], PREDICT_COST);
 
 
-                                //debug
-                                if (KM::lenx - 1 == j)
-                                    cout << "w[" << KM::lenx - 1 << "][" << j << "]=" << KM::w[KM::lenx - 1][j] << endl;
+                                #ifdef DEBUG
+                                    // if (KM::lenx - 1 == j)
+                                    //     cout << "w[" << KM::lenx - 1 << "][" << j << "]=" << KM::w[KM::lenx - 1][j] << endl;
+                                #endif
 					 		}
 					 }
 				}
@@ -496,7 +501,7 @@ struct answer {
 };
 
 vector<answer> get_next_list(const answer now) {
-    vector<answer> v = {};
+    vector<answer> v;
     for (int p = 0; p < now.match.size(); ++p) {
         if (now.match[p] == NOT_MATCH) {
             auto ret = now;
@@ -554,13 +559,15 @@ int main(int argc, char* argv[]) {
     empty_answer.upd_eval_cost();
     que.push(empty_answer);
 
-    empty_answer.print();
-    /*
+    // empty_answer.print();
+    
     while (!que.empty()) {
         auto now = que.top();
         que.pop();
 
-        printf("now:");now.print();
+        #ifdef DEBUG
+            printf("now:");now.print();
+        #endif
 
         if (final_ans <= now) {
             continue;
@@ -583,6 +590,6 @@ int main(int argc, char* argv[]) {
     }
 
     final_ans.print();
-    */
+    
     return 0;
 }
