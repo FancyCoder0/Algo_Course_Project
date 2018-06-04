@@ -743,6 +743,8 @@ struct cmp {
 };
 
 int main(int argc, char* argv[]) {
+		clock_t start_time = clock(); 
+
     cost_node_sub = atoi(argv[1]) * 2;  // convenient for divide 2
     cost_node_di = atoi(argv[2]) * 2;
     cost_edge_sub = atoi(argv[3]) * 2;
@@ -821,6 +823,11 @@ int main(int argc, char* argv[]) {
 
     final_ans.cur_cost /= 2;
     final_ans.print();
+
+
+    clock_t end_time = clock(); 
+    double running_time = static_cast<double>(end_time-start_time)/CLOCKS_PER_SEC;
+		cout << "time = " << running_time << "s" << endl;
 
     return 0;
 }
