@@ -1,11 +1,14 @@
 #include <bits/stdc++.h>
 
+#include <pthread.h>
+
 using namespace std;
 
 // #define DEBUG
-#define HEAP_OPT
-
-#define ITER_TIMES 1000
+#define PARALLEL
+#define NUM_THREADS 4
+#define TASK_LIMIT 100
+#define ITER_TIMES 10000
 
 #define DELETE -2
 #define NOT_MATCH -1
@@ -15,6 +18,10 @@ using namespace std;
 #define PREDICT_OPT
 
 const int MAX_NODE = 110, MAX_EDGE = 1110, INF = int(1e9), BIAS = int(1e5);
+
+volatile int running_threads = 0;
+pthread_mutex_t running_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t ans_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int cost_node_sub, cost_node_di, cost_edge_sub, cost_edge_di;
 
@@ -46,8 +53,9 @@ struct graph {
         memset(adj_mat, -1, sizeof(adj_mat));
 
         ifstream input(file);
+#ifdef DEBUG
         cout << "reading " << file << endl;
-
+#endif
         n = m = k = 0;
         string tmp;
         //getline(cin, tmp);
@@ -143,7 +151,7 @@ struct graph {
 graph origin, target;
 
 const int Flow_V = MAX_NODE * 2 + 10, Flow_E = MAX_NODE * MAX_NODE * 2 + 100;
-namespace flow {
+struct flow {
     int edge,S,T,N,fir[Flow_V],e[Flow_E],b[Flow_E],c[Flow_E],w[Flow_E],dis[Flow_V],de[Flow_V];
     int totflow,totcost;
     int cur[Flow_V], q[Flow_E*10];
@@ -216,73 +224,7 @@ namespace flow {
         }
         return totcost;
     }
-};
-
-/*
-namespace KM {
-		int lenx,leny;
-		int w[MAX_NODE][MAX_NODE];
-		int slack[MAX_NODE],lx[MAX_NODE],ly[MAX_NODE],maty[MAX_NODE];
-		bool vx[MAX_NODE],vy[MAX_NODE]; //S集合、Y集合
-
-		bool search(int u) {
-		    int i,t;
-		    vx[u]=1;
-		    for(i=0;i<leny;++i)
-		        if(!vy[i]) {
-		            t=lx[u]+ly[i]-w[u][i];
-		            if (t==0) {
-		                vy[i]=1;
-		                if(maty[i]==-1||search(maty[i])){
-		                    maty[i]=u;
-		                    return 1;
-		                }
-		            }
-		            else if(slack[i]>t)
-		                slack[i]=t;
-		        }
-		    return 0;
-		}
-		int get() {
-		    int i,j,ans=0;
-		    for(i=0;i<lenx;++i)
-		        for(lx[i]=-INF,j=0;j<leny;++j)
-		            lx[i]=max(lx[i],w[i][j]);
-		    memset(maty,-1,sizeof(maty));
-		    memset(ly,0,sizeof(ly));
-		    for(i=0;i<lenx;++i) { //找增广路
-		        for(j=0;j<leny;++j)
-		            slack[j]=INF;
-		        while(1) {
-		            memset(vx,0,sizeof(vx));
-		            memset(vy,0,sizeof(vy));
-		            if(search(i))//找到i对应的增广路，不再找
-		                break;
-		            //没找到增广路，修正
-		            int d=INF;
-		            for(j=0;j<leny;++j)
-		                if(!vy[j]&&d>slack[j])
-		                    d=slack[j];
-		            for(j=0;j<lenx;++j)
-		                if(vx[j])
-		                    lx[j]-=d;
-		            for(j=0;j<leny;++j)
-		                if(vy[j])
-		                    ly[j]+=d;
-		        }
-		    }
-		    for(i=0;i<leny;++i)
-		        if(maty[i]!=-1)
-		            ans+=w[maty[i]][i];
-		    return ans;
-		}
-
-		void init() {
-			lenx = 0;
-			leny = 0;
-		}
-};
-*/
+} flow_g[NUM_THREADS];
 
 struct answer {
     int cur_cost, eval_cost;
@@ -381,7 +323,18 @@ struct answer {
     }
 
 
-    void upd_eval_cost(answer& final_ans) {
+    void upd_eval_cost(const int thread_id, answer& final_ans) {
+        if (finish()) {
+            cur_cost = full_match_cost();
+            eval_cost = 0;
+            if (*this < final_ans) {
+                pthread_mutex_lock(&ans_mutex);
+                if (*this < final_ans) final_ans = *this;
+                pthread_mutex_unlock(&ans_mutex);
+            }
+            return;
+        }
+
         // Build the flow graph
         vector<int> target_not_match_list;
         vector<int> origin_not_match_list;
@@ -407,33 +360,35 @@ struct answer {
         int x_del = lenx - 1;
         int y_del = lenx + leny - 1;
 
-        flow::S = lenx + leny + 1;
-        flow::T = lenx + leny + 2;
-        flow::N = flow::T + 1;
-        flow::init();
+        flow* g = &flow_g[thread_id];
+
+        g->S = lenx + leny + 1;
+        g->T = lenx + leny + 2;
+        g->N = g->T + 1;
+        g->init();
 
         for (int i = 0; i < lenx; ++i) {
-            flow::add(flow::S, i, (i == x_del) ? INF : 1, (i == x_del) ? 0 : -BIAS);
+            g->add(g->S, i, (i == x_del) ? INF : 1, (i == x_del) ? 0 : -BIAS);
         }
         for (int i = 0; i < leny; ++i) {
-            flow::add(lenx + i, flow::T, (lenx + i == y_del) ? INF: 1, (lenx + i == y_del) ? 0 : -BIAS);
+            g->add(lenx + i, g->T, (lenx + i == y_del) ? INF: 1, (lenx + i == y_del) ? 0 : -BIAS);
         }
 
         for (int i = 0; i < leny - 1; ++i) {
-            flow::add(x_del, lenx + i, INF, calc_edit_cost(-1, target_not_match_list[i], PREDICT_COST));
+            g->add(x_del, lenx + i, INF, calc_edit_cost(-1, target_not_match_list[i], PREDICT_COST));
         }
 
         for (int i = 0; i < lenx - 1; ++i) {
-            flow::add(i, y_del, INF, calc_edit_cost(origin_not_match_list[i], -1, PREDICT_COST));
+            g->add(i, y_del, INF, calc_edit_cost(origin_not_match_list[i], -1, PREDICT_COST));
         }
 
         for (int i = 0; i < lenx - 1; ++i) {
             for (int j = 0; j < leny - 1; ++j) {
-                flow::add(i, lenx + j, INF, calc_edit_cost(origin_not_match_list[i], target_not_match_list[j], PREDICT_COST));
+                g->add(i, lenx + j, INF, calc_edit_cost(origin_not_match_list[i], target_not_match_list[j], PREDICT_COST));
             }
         }
 
-        eval_cost = flow::solve() + (lenx - 1 + leny - 1) * BIAS;
+        eval_cost = g->solve() + (lenx - 1 + leny - 1) * BIAS;
 
         assert(eval_cost >= 0);
 
@@ -442,8 +397,8 @@ struct answer {
             appro_sol.match[origin_not_match_list[i]] = DELETE;
         }
         for (int i = 0; i < lenx - 1; ++i) {
-            for (int k = flow::fir[i]; k; k = flow::b[k]) if (flow::c[k^1]) {
-                    int j = flow::e[k] - lenx;
+            for (int k = g->fir[i]; k; k = g->b[k]) if (g->c[k^1]) {
+                    int j = g->e[k] - lenx;
                     if (j >= 0 && j < leny) {
                         int x = origin_not_match_list[i], y = target_not_match_list[j];
                         appro_sol.match[x] = y;
@@ -463,68 +418,12 @@ struct answer {
 #endif
 
         if (appro_sol < final_ans) {
-            final_ans = appro_sol;
+            pthread_mutex_lock(&ans_mutex);
+            if (appro_sol < final_ans) final_ans = appro_sol;
+            pthread_mutex_unlock(&ans_mutex);
         }
-
     }
-    /*
-    void upd_eval_cost() {
-        // Build the KM graph
-    		// todo: not consider node -> DELETE
-            // todo: consider node DELETE and INSERT -- add more empty node !
-
-        KM::init();
-        vector<int> target_not_match_list;
-        vector<int> origin_not_match_list;
-
-    			for (int i = 0; i < target_map.size(); ++i) {
-    				if (target_map[i] == NOT_MATCH) {
-    					KM::leny ++;
-    					target_not_match_list.push_back(i);
-    				}
-    			}
-    			for (int i = 0; i < match.size(); ++i) {
-    				 if (match[i] == NOT_MATCH) {
-    				 		KM::lenx ++;
-                            origin_not_match_list.push_back(i);
-
-    				 		for (int j = 0; j < target_not_match_list.size(); ++j) {
-                                // min - max
-    				 			KM::w[KM::lenx - 1][j] = -calc_edit_cost(i, target_not_match_list[j], PREDICT_COST);
-
-
-                                #ifdef DEBUG
-                                    // if (KM::lenx - 1 == j)
-                                    //     cout << "w[" << KM::lenx - 1 << "][" << j << "]=" << KM::w[KM::lenx - 1][j] << endl;
-                                #endif
-    				 		}
-    				 }
-    			}
-                //origin node -> empty
-                if (KM::lenx > KM::leny) {
-                    for (int i = 0; i < origin_not_match_list.size(); ++i) {
-                        for (int j = KM::leny + 1; j <= KM::lenx; j++)
-                            // min - max
-                            KM::w[i][j - 1] = -calc_edit_cost(origin_not_match_list[i], -1, PREDICT_COST);
-                    }
-                    KM::lenx = KM::leny;
-                }
-
-                //empty -> target node
-                if (KM::lenx < KM::leny) {
-                    for (int i = 0; i < target_not_match_list.size(); ++i) {
-                        for (int j = KM::lenx + 1; j <= KM::leny; j++)
-                            KM::w[j - 1][i] = -calc_edit_cost(-1, target_not_match_list[i], PREDICT_COST);
-                    }
-                    KM::lenx = KM::leny;
-                }
-
-        // Calculate the KM result
-        eval_cost = -KM::get();
-    }
-    */
-
-
+    
     int calc_edit_cost(const int p, const int q, const int cost_kind) const {
         // p = -1 (insert q)
         // q = -1 (delete p)
@@ -656,23 +555,16 @@ struct answer {
 
         if (cost_kind == PURE_COST) return pure_cost;
         if (cost_kind == PREDICT_COST) return predict_cost + pure_cost;
-        return INF;
     }
 
     void print() {
-        printf("cur_cost = %d, eval_cost = %d, total_cost = %d\n", cur_cost, eval_cost, cur_cost + eval_cost);
+        // printf("cur_cost = %d, eval_cost = %d, total_cost = %d\n", cur_cost, eval_cost, cur_cost + eval_cost);
+        printf("\n\ncost = %d\n", cur_cost);
         printf("Match List:");
         for(int i = 0; i < match.size(); ++i) {
-            printf("%d, ", match[i]);
+            printf("%d, ", match[i] == DELETE ? -1 : match[i]);
         }
         printf("\n");
-        /*
-        printf("Target Map List:");
-        for(int i = 0; i < target_map.size(); ++i) {
-            printf("%d, ", target_map[i]);
-        }
-        printf("\n");
-        */
     }
 
     bool operator<(const answer& x) const  {
@@ -686,7 +578,7 @@ struct answer {
 
 answer final_ans;
 
-vector<answer> get_next_list(const answer now) {
+vector<answer> get_next_list(const int thread_id, const answer now) {
     vector<answer> v;
     for (int p = 0; p < now.match.size(); ++p) {
         if (now.match[p] == NOT_MATCH) {
@@ -695,7 +587,7 @@ vector<answer> get_next_list(const answer now) {
             // p -> empty
             ret.match[p] = DELETE;
             ret.cur_cost += now.calc_edit_cost(p, -1, PURE_COST); // delete cost
-            ret.upd_eval_cost(final_ans);
+            ret.upd_eval_cost(thread_id, final_ans);
             v.push_back(ret);
 
             for (int q = 0; q < now.target_map.size(); ++q) {
@@ -705,7 +597,7 @@ vector<answer> get_next_list(const answer now) {
                     ret.match[p] = q;
                     ret.target_map[q] = p;
                     ret.cur_cost += now.calc_edit_cost(p, q, PURE_COST); // subtitute cost
-                    ret.upd_eval_cost(final_ans);
+                    ret.upd_eval_cost(thread_id, final_ans);
                     v.push_back(ret);
                 }
             }
@@ -722,8 +614,52 @@ struct cmp {
     }
 };
 
+struct task_args {
+    int thread_id;
+    vector<answer> tasks;
+};
+
+void* run(void* args) {
+    task_args* st = (task_args *)args;
+    priority_queue<answer, vector<answer>, cmp> que;
+    for (auto& x : (*st).tasks) {
+        que.push(x);
+    }
+
+    int thread_id = (*st).thread_id;
+
+    printf("thread %d start!\n", thread_id);
+
+    int iter_times = 0;
+    while (!que.empty()) {
+        auto now = que.top();
+        que.pop();
+
+        if (++iter_times > ITER_TIMES) {
+            break;
+        }
+
+        if (final_ans <= now) {
+            continue;
+        }
+
+        for (auto& next : get_next_list(thread_id, now)) {
+            if (final_ans <= next) {
+                continue;
+            }
+            que.push(next);
+        }
+    }
+
+    pthread_mutex_lock(&running_mutex);
+    running_threads--;
+    pthread_mutex_unlock(&running_mutex);
+    printf("thread %d is finished!\n", thread_id);
+}
+
+
 int main(int argc, char* argv[]) {
-		clock_t start_time = clock();
+	clock_t start_time = clock();
 
     cost_node_sub = atoi(argv[1]) * 2;  // convenient for divide 2
     cost_node_di = atoi(argv[2]) * 2;
@@ -746,68 +682,63 @@ int main(int argc, char* argv[]) {
     answer empty_answer = (answer) {
         0, 0, vector<int>((int)origin.nodes.size(), NOT_MATCH), vector<int>((int)target.nodes.size(), NOT_MATCH)
     };
-    empty_answer.upd_eval_cost(final_ans);
+    empty_answer.upd_eval_cost(0, final_ans);
     que.push(empty_answer);
 
-    // empty_answer.print();
-
-    int iter_times = 0;
+    int main_iter_times = 0; // only used in single thread.
 
     while (!que.empty()) {
-        
-        iter_times ++;
-        if (iter_times > ITER_TIMES) {
+#ifdef PARALLEL
+        if (que.size() >= TASK_LIMIT) {
             break;
         }
+#else
+        if (++main_iter_times > ITER_TIMES) {
+            break;
+        }
+#endif
 
         auto now = que.top();
         que.pop();
 
-#ifdef DEBUG
-        printf("now:");
-        now.print();
-        bool ok=1;
-        for(int i = 0; i < now.match.size(); ++i) {
-            if (now.match[i] != NOT_MATCH)
-                if (now.match[i] != i) {
-                    ok = 0;
-                }
-        }
-        if (ok) {
-            printf("now:");
-            now.print();
-            printf("full=%d\n",now.full_match_cost());
-        }
-#endif
-
-
-
-#ifdef HEAP_OPT
         if (final_ans <= now) {
             continue;
         }
-#endif
 
-        if (now.finish()) {
-            now.cur_cost = now.full_match_cost();
-            now.eval_cost = 0;
-            if (now < final_ans) {
-                final_ans = now;
+        for (auto& next : get_next_list(0, now)) {
+            if (final_ans <= next) {
+                continue;
             }
-            continue;
-        }
-
-        auto next_list = get_next_list(now);
-        for (auto next : next_list) {
-#ifdef HEAP_OPT
-		        if (final_ans <= next) {
-		            continue;
-		        }
-#endif
             que.push(next);
         }
     }
 
+#ifdef PARALLEL
+    printf("start parallel search....\n");
+
+    pthread_t tids[NUM_THREADS];
+    task_args task[NUM_THREADS];
+
+    int p = 0;
+    while(!que.empty()) {
+        task[p].tasks.push_back(que.top());
+        que.pop();
+        p = (p + 1) % NUM_THREADS;
+    }
+
+    running_threads = NUM_THREADS;
+    for(int i = 0 ; i < NUM_THREADS; ++i) {
+        task[i].thread_id = i;
+        int ret = pthread_create(&tids[i], NULL, run, &task[i]);
+        if (ret != 0) {
+            printf("pthread_create error: error_code = %d", ret);
+        }
+    }
+
+    while (running_threads > 0 ) {
+
+    }
+#endif
 
     final_ans.cur_cost /= 2;
     final_ans.print();
@@ -815,7 +746,7 @@ int main(int argc, char* argv[]) {
 
     clock_t end_time = clock();
     double running_time = static_cast<double>(end_time-start_time)/CLOCKS_PER_SEC;
-		cout << "time = " << running_time << "s" << endl;
+	printf("cpu time = %.3lfs\n",running_time);
 
     return 0;
 }
