@@ -535,7 +535,7 @@ struct answer {
 
         int pure_cost = 0;
         int predict_cost = 0;
-		
+
 				// cerr << "calc_edit_cost (" << p << ", " << q << ")" << endl;
 
         if (p == -1) {
@@ -721,7 +721,7 @@ struct cmp {
 };
 
 int main(int argc, char* argv[]) {
-		clock_t start_time = clock(); 
+		clock_t start_time = clock();
 
     cost_node_sub = atoi(argv[1]) * 2;  // convenient for divide 2
     cost_node_di = atoi(argv[2]) * 2;
@@ -779,15 +779,12 @@ int main(int argc, char* argv[]) {
 #endif
 
         if (now.finish()) {
-        		if (now.cur_cost != now.full_match_cost()) {
-        			printf("%d\n", now.full_match_cost());
-        			now.print();
-        		}
-        		assert(now.cur_cost == now.full_match_cost());
-        		assert(now.eval_cost == 0);
+            now.cur_cost = now.full_match_cost();
+            now.eval_cost = 0;
             if (now < final_ans) {
                 final_ans = now;
             }
+            continue;
         }
 
         auto next_list = get_next_list(now);
@@ -806,7 +803,7 @@ int main(int argc, char* argv[]) {
     final_ans.print();
 
 
-    clock_t end_time = clock(); 
+    clock_t end_time = clock();
     double running_time = static_cast<double>(end_time-start_time)/CLOCKS_PER_SEC;
 		cout << "time = " << running_time << "s" << endl;
 
