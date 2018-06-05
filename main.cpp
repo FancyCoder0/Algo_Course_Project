@@ -5,6 +5,8 @@ using namespace std;
 // #define DEBUG
 #define HEAP_OPT
 
+#define ITER_TIMES 1000
+
 #define DELETE -2
 #define NOT_MATCH -1
 #define PURE_COST 0
@@ -749,7 +751,15 @@ int main(int argc, char* argv[]) {
 
     // empty_answer.print();
 
+    int iter_times = 0;
+
     while (!que.empty()) {
+        
+        iter_times ++;
+        if (iter_times > ITER_TIMES) {
+            break;
+        }
+
         auto now = que.top();
         que.pop();
 
