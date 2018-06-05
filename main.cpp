@@ -1,10 +1,13 @@
 #include <bits/stdc++.h>
 
 #include <pthread.h>
+#include <unistd.h>
 
 using namespace std;
 
 // #define DEBUG
+
+#define TIMELIMIT 30
 #define PARALLEL
 #define NUM_THREADS 4
 #define TASK_LIMIT 100
@@ -20,7 +23,7 @@ using namespace std;
 const int MAX_NODE = 110, MAX_EDGE = 1110, INF = int(1e9), BIAS = int(1e5);
 
 volatile int running_threads = 0;
-pthread_mutex_t running_mutex = PTHREAD_MUTEX_INITIALIZER;
+// pthread_mutex_t running_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t ans_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int cost_node_sub, cost_node_di, cost_edge_sub, cost_edge_di;
@@ -651,9 +654,11 @@ void* run(void* args) {
         }
     }
 
+    /*
     pthread_mutex_lock(&running_mutex);
     running_threads--;
     pthread_mutex_unlock(&running_mutex);
+    */
     printf("thread %d is finished!\n", thread_id);
 }
 
@@ -714,6 +719,8 @@ int main(int argc, char* argv[]) {
     }
 
 #ifdef PARALLEL
+    double time_before_parallel = static_cast<double>(clock()-start_time)/CLOCKS_PER_SEC;
+    // printf("time_before_parallel time = %.3lfs\n",time_before_parallel);
     printf("start parallel search....\n");
 
     pthread_t tids[NUM_THREADS];
@@ -735,18 +742,21 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    /*
     while (running_threads > 0 ) {
 
-    }
+    }*/
+    sleep(TIMELIMIT - time_before_parallel);
 #endif
 
+    pthread_mutex_lock(&ans_mutex);
     final_ans.cur_cost /= 2;
     final_ans.print();
+    pthread_mutex_unlock(&ans_mutex);
 
 
-    clock_t end_time = clock();
-    double running_time = static_cast<double>(end_time-start_time)/CLOCKS_PER_SEC;
-	printf("cpu time = %.3lfs\n",running_time);
+    // double running_time = static_cast<double>(clock()-start_time)/CLOCKS_PER_SEC;
+	// printf("cpu time = %.3lfs\n",running_time);
 
     return 0;
 }
