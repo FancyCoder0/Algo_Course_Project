@@ -5,13 +5,14 @@
 
 using namespace std;
 
-// #define DEBUG
+//#define DEBUG
+#define BETTER
 
-#define TIMELIMIT 30
+#define TIMELIMIT 10
 #define PARALLEL
 #define NUM_THREADS 4
 #define TASK_LIMIT 100
-#define ITER_TIMES 10000
+#define ITER_TIMES 100
 
 #define DELETE -2
 #define NOT_MATCH -1
@@ -20,13 +21,18 @@ using namespace std;
 
 #define PREDICT_OPT
 
-const int MAX_NODE = 110, MAX_EDGE = 1110, INF = int(1e9), BIAS = int(1e5);
+const int MAX_NODE = 210, MAX_EDGE = 1110, INF = int(1e9), BIAS = int(1e5);
 
 volatile int running_threads = 0;
 // pthread_mutex_t running_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t ans_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int cost_node_sub, cost_node_di, cost_edge_sub, cost_edge_di;
+
+int random(int x)
+{
+    return rand() % x;
+}
 
 struct node {
     int index, attr;
@@ -35,6 +41,10 @@ struct node {
 struct edge {
     int x, y, attr;
 };
+
+map<string, int> attr_str_to_id;
+map<int, string> id_to_attr_str;
+int attr_num = 0;
 
 struct graph {
     int n; // #nodes
@@ -45,8 +55,6 @@ struct graph {
     //vector<vector<int> > to_nodes; // for each node the vector contains all the edge's index.
     vector<int> adj[MAX_NODE]; // for each node the vector contains all the edges.
     map<string, int> name_to_id;
-    map<string, int> attr_str_to_id;
-
     int adj_mat[MAX_NODE][MAX_NODE]; // adjacent matrix
 
 
@@ -59,7 +67,7 @@ struct graph {
 #ifdef DEBUG
         cout << "reading " << file << endl;
 #endif
-        n = m = k = 0;
+        n = m = 0; 
         string tmp;
         //getline(cin, tmp);
         //cout << tmp << endl;
@@ -81,11 +89,11 @@ struct graph {
                     int attr_pos1 = tmp.find("<string>") + 8;
                     int attr_pos2 = tmp.find("</string>");
                     string attr_str = tmp.substr(attr_pos1, attr_pos2 - attr_pos1);
-                    if (attr_str_to_id[attr_str] == 0) attr_str_to_id[attr_str] = ++k;
+                    if (attr_str_to_id[attr_str] == 0) attr_str_to_id[attr_str] = ++attr_num, id_to_attr_str[attr_num] = attr_str;
                     x = attr_str_to_id[attr_str];
-#ifdef DEBUG
-                    cout << "string=" << attr_str << endl;
-#endif
+//#ifdef DEBUG
+//                    cout << "string=" << attr_str << " id = " << x << endl;
+//#endif
                 } else
                 {
                     getline(input, tmp);
@@ -243,16 +251,20 @@ struct answer {
         return true;
     }
 
-    int full_match_cost() {
+    int full_match_cost(int is_final = 0) {
         // a solution's full cost !
         // full match
         //
         int node_sub = 0;
         int node_del = 0;
         int node_ins = 0;
+        int node_match = 0;
         int edge_sub = 0;
         int edge_del = 0;
         int edge_ins = 0;
+        int edge_match = 0;
+
+        map<string, int> match_kind;
 
         for (int i = 0; i < match.size(); i++)
         {
@@ -270,7 +282,13 @@ struct answer {
                 }
             } else
             {
+#ifdef debug
+                if (origin.nodes[i].attr == target.nodes[match[i]].attr)
+                    match_kind[id_to_attr_str[origin.nodes[i].attr]]++;
+#endif
+
                 node_sub += (origin.nodes[i].attr != target.nodes[match[i]].attr);
+                node_match += (origin.nodes[i].attr == target.nodes[match[i]].attr);
 
                 for (int j = 0; j < origin.adj[i].size(); j++)
                 {
@@ -282,6 +300,7 @@ struct answer {
                         {
                             // edge_sub
                             edge_sub += (ed.attr != target.edges[target.adj_mat[match[i]][match[k]]].attr);
+                            edge_match += (ed.attr == target.edges[target.adj_mat[match[i]][match[k]]].attr);
                         } else
                             edge_del++;
                     }
@@ -321,6 +340,22 @@ struct answer {
             }
         }
 
+        if (is_final == 1)
+        {
+            cout << "node_sub = " << node_sub << endl;
+            cout << "node_del = " << node_del << endl;
+            cout << "node_ins = " << node_ins << endl;
+            cout << "node_match = " << node_match << endl;
+            cout << "edge_sub = " << edge_sub << endl;
+            cout << "edge_del = " << edge_del << endl;
+            cout << "edge_ins = " << edge_ins << endl;
+            cout << "edge_match = " << edge_match << endl;
+
+            for (auto it = match_kind.begin(); it != match_kind.end(); ++it)
+            {
+                cout << it -> first << "_match = " << it -> second << endl;
+            }
+        }
 
         return node_sub * cost_node_sub + (node_ins + node_del) * cost_node_di + edge_sub * cost_edge_sub + (edge_ins + edge_del) * cost_edge_di;
     }
@@ -424,9 +459,45 @@ struct answer {
             pthread_mutex_lock(&ans_mutex);
             if (appro_sol < final_ans) final_ans = appro_sol;
             pthread_mutex_unlock(&ans_mutex);
+
+#ifdef BETTER
+            //remove a half matching
+            answer better = appro_sol;
+            //better.fix(thread_id, final_ans);
+            for (int i = 0; i < origin.nodes.size(); i++)
+                if (random(3) == 0 || origin.adj[i].size() == 1) {
+                    if (better.match[i] == DELETE)
+                        better.match[i] = NOT_MATCH;
+                    else if (better.match[i] >= 0) {
+                        better.target_map[better.match[i]] = NOT_MATCH;
+                        better.match[i] = NOT_MATCH;
+                    }
+                }
+            //upd cost
+            better.upd_eval_cost(thread_id, final_ans);
+#endif
         }
     }
-    
+
+    void fix(const int thread_id, answer& final_ans) {
+
+        answer better = *this;
+        for (int i = 0; i < origin.nodes.size(); ++i)
+        {
+            if (origin.adj[i].size() == 1)
+            {
+                if (better.match[i] == DELETE)
+                        better.match[i] = NOT_MATCH;
+                    else if (better.match[i] >= 0) {
+                        better.target_map[better.match[i]] = NOT_MATCH;
+                        better.match[i] = NOT_MATCH;
+                }
+            }
+        }
+
+        better.upd_eval_cost(thread_id, final_ans);
+    }
+
     int calc_edit_cost(const int p, const int q, const int cost_kind) const {
         // p = -1 (insert q)
         // q = -1 (delete p)
@@ -564,10 +635,11 @@ struct answer {
         // printf("cur_cost = %d, eval_cost = %d, total_cost = %d\n", cur_cost, eval_cost, cur_cost + eval_cost);
         printf("\n\ncost = %d\n", cur_cost);
         printf("Match List:");
+        /*
         for(int i = 0; i < match.size(); ++i) {
             printf("%d, ", match[i] == DELETE ? -1 : match[i]);
         }
-        printf("\n");
+        printf("\n"); */
     }
 
     bool operator<(const answer& x) const  {
@@ -664,6 +736,9 @@ void* run(void* args) {
 
 
 int main(int argc, char* argv[]) {
+
+    srand(time(0));
+
 	clock_t start_time = clock();
 
     cost_node_sub = atoi(argv[1]) * 2;  // convenient for divide 2
@@ -698,6 +773,10 @@ int main(int argc, char* argv[]) {
             break;
         }
 #else
+        if (main_iter_times % (ITER_TIMES / 100) == 0) 
+        {
+            cerr << "single thread search : " << main_iter_times / (ITER_TIMES / 100) << "%" << endl;
+        } 
         if (++main_iter_times > ITER_TIMES) {
             break;
         }
@@ -738,7 +817,7 @@ int main(int argc, char* argv[]) {
         task[i].thread_id = i;
         int ret = pthread_create(&tids[i], NULL, run, &task[i]);
         if (ret != 0) {
-            printf("pthread_create error: error_code = %d", ret);
+            printf("pthread_create error: error_code = %d", ret);
         }
     }
 
@@ -747,16 +826,19 @@ int main(int argc, char* argv[]) {
 
     }*/
     sleep(TIMELIMIT - time_before_parallel);
+
 #endif
+
+//    final_ans.fix(0, final_ans);
 
     pthread_mutex_lock(&ans_mutex);
     final_ans.cur_cost /= 2;
     final_ans.print();
+    final_ans.full_match_cost(1);
     pthread_mutex_unlock(&ans_mutex);
 
-
-    // double running_time = static_cast<double>(clock()-start_time)/CLOCKS_PER_SEC;
-	// printf("cpu time = %.3lfs\n",running_time);
+    double running_time = static_cast<double>(clock()-start_time)/CLOCKS_PER_SEC;
+	printf("cpu time = %.3lfs\n",running_time);
 
     return 0;
 }
