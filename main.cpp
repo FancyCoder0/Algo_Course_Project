@@ -11,8 +11,7 @@ using namespace std;
 #define TIMELIMIT 10
 #define PARALLEL
 #define NUM_THREADS 4
-#define TASK_LIMIT 100
-#define ITER_TIMES 100
+#define PARALLEL_TASK_LIMIT 100
 
 #define DELETE -2
 #define NOT_MATCH -1
@@ -23,8 +22,6 @@ using namespace std;
 
 const int MAX_NODE = 210, MAX_EDGE = 1110, INF = int(1e9), BIAS = int(1e5);
 
-volatile int running_threads = 0;
-// pthread_mutex_t running_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t ans_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int cost_node_sub, cost_node_di, cost_edge_sub, cost_edge_di;
@@ -254,7 +251,6 @@ struct answer {
     int full_match_cost(int is_final = 0) {
         // a solution's full cost !
         // full match
-        //
         int node_sub = 0;
         int node_del = 0;
         int node_ins = 0;
@@ -549,8 +545,6 @@ struct answer {
             // count matched edge!
             //int matched_edge = 0;
             //int matched_edge_cost = 0;
-            //
-            //
             int deg_p = 0;
             int deg_q = 0;
 
@@ -628,7 +622,7 @@ struct answer {
 
     void print() {
         // printf("cur_cost = %d, eval_cost = %d, total_cost = %d\n", cur_cost, eval_cost, cur_cost + eval_cost);
-        printf("\n\ncost = %d\n", cur_cost);
+        printf("cost = %d\n", cur_cost);
         printf("Match List:");
         for(int i = 0; i < match.size(); ++i) {
             printf("%d, ", match[i] == DELETE ? -1 : match[i]);
@@ -697,16 +691,13 @@ void* run(void* args) {
 
     int thread_id = (*st).thread_id;
 
+#ifdef DEBUG
     printf("thread %d start!\n", thread_id);
+#endif
 
-    int iter_times = 0;
     while (!que.empty()) {
         auto now = que.top();
         que.pop();
-
-        if (++iter_times > ITER_TIMES) {
-            break;
-        }
 
         if (final_ans <= now) {
             continue;
@@ -720,20 +711,17 @@ void* run(void* args) {
         }
     }
 
-    /*
-    pthread_mutex_lock(&running_mutex);
-    running_threads--;
-    pthread_mutex_unlock(&running_mutex);
-    */
+
+#ifdef DEBUG
     printf("thread %d is finished!\n", thread_id);
+#endif
 }
 
 
 int main(int argc, char* argv[]) {
+    auto start_point = std::chrono::system_clock::now();
 
     srand(time(0));
-
-	clock_t start_time = clock();
 
     cost_node_sub = atoi(argv[1]) * 2;  // convenient for divide 2
     cost_node_di = atoi(argv[2]) * 2;
@@ -748,7 +736,6 @@ int main(int argc, char* argv[]) {
     origin.read_from_gxl(input1);
     target.read_from_gxl(input2);
 
-
     final_ans.cur_cost = INF;
 
     priority_queue<answer, vector<answer>, cmp> que;
@@ -759,20 +746,20 @@ int main(int argc, char* argv[]) {
     empty_answer.upd_eval_cost(0, final_ans);
     que.push(empty_answer);
 
-    int main_iter_times = 0; // only used in single thread.
+    int main_iter_times = 0;
+    clock_t start_time = clock();
 
     while (!que.empty()) {
 #ifdef PARALLEL
-        if (que.size() >= TASK_LIMIT) {
+        if (que.size() >= PARALLEL_TASK_LIMIT) {
             break;
         }
 #else
-        if (main_iter_times % (ITER_TIMES / 100) == 0) 
-        {
-            cerr << "single thread search : " << main_iter_times / (ITER_TIMES / 100) << "%" << endl;
-        } 
-        if (++main_iter_times > ITER_TIMES) {
-            break;
+        if (main_iter_times % 100 == 0) {
+            double spend_time = static_cast<double>(clock()-start_time)/CLOCKS_PER_SEC;
+            if (abs(TIMELIMIT - spend_time) < 0.2) {
+                break;
+            }
         }
 #endif
 
@@ -794,7 +781,7 @@ int main(int argc, char* argv[]) {
 #ifdef PARALLEL
     double time_before_parallel = static_cast<double>(clock()-start_time)/CLOCKS_PER_SEC;
     // printf("time_before_parallel time = %.3lfs\n",time_before_parallel);
-    printf("start parallel search....\n");
+    // printf("start parallel search....\n");
 
     pthread_t tids[NUM_THREADS];
     task_args task[NUM_THREADS];
@@ -806,7 +793,6 @@ int main(int argc, char* argv[]) {
         p = (p + 1) % NUM_THREADS;
     }
 
-    running_threads = NUM_THREADS;
     for(int i = 0 ; i < NUM_THREADS; ++i) {
         task[i].thread_id = i;
         int ret = pthread_create(&tids[i], NULL, run, &task[i]);
@@ -815,10 +801,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    /*
-    while (running_threads > 0 ) {
-
-    }*/
     sleep(TIMELIMIT - time_before_parallel);
 
 #endif
@@ -831,8 +813,7 @@ int main(int argc, char* argv[]) {
     final_ans.full_match_cost(1);
     pthread_mutex_unlock(&ans_mutex);
 
-    double running_time = static_cast<double>(clock()-start_time)/CLOCKS_PER_SEC;
-	printf("cpu time = %.3lfs\n",running_time);
+    cout << "run time = " << (std::chrono::system_clock::now() - start_point).count() / 1e6 << "s" << endl;
 
     return 0;
 }
