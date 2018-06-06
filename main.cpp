@@ -29,8 +29,7 @@ pthread_mutex_t ans_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int cost_node_sub, cost_node_di, cost_edge_sub, cost_edge_di;
 
-int random(int x)
-{
+int random(int x) {
     return rand() % x;
 }
 
@@ -64,15 +63,19 @@ struct graph {
         memset(adj_mat, -1, sizeof(adj_mat));
 
         ifstream input(file);
-#ifdef DEBUG
-        cout << "reading " << file << endl;
-#endif
+
         n = m = 0; 
         string tmp;
-        //getline(cin, tmp);
-        //cout << tmp << endl;
+
+#ifdef DEBUG
+        cout << "reading " << file << endl;
+        getline(cin, tmp);
+        cout << tmp << endl;
+#endif
         while (getline(input, tmp)) {
-            //cout << tmp << endl;
+#ifdef DEBUG
+            cout << tmp << endl;
+#endif
             if (tmp.length() < 5) continue;
             if (tmp.substr(1, 4) == "node") {
                 // get name
@@ -84,20 +87,17 @@ struct graph {
                 int x = 0; // attr-id
 
                 // get attr
-                if (tmp.find("string") != string::npos)
-                {
+                if (tmp.find("string") != string::npos) {
                     int attr_pos1 = tmp.find("<string>") + 8;
                     int attr_pos2 = tmp.find("</string>");
                     string attr_str = tmp.substr(attr_pos1, attr_pos2 - attr_pos1);
                     if (attr_str_to_id[attr_str] == 0) attr_str_to_id[attr_str] = ++attr_num, id_to_attr_str[attr_num] = attr_str;
                     x = attr_str_to_id[attr_str];
-//#ifdef DEBUG
-//                    cout << "string=" << attr_str << " id = " << x << endl;
-//#endif
-                } else
-                {
+#ifdef DEBUG
+                    cout << "string=" << attr_str << " id = " << x << endl;
+#endif
+                } else {
                     getline(input, tmp);
-                    //cout << tmp << endl;
                     int i;
                     for (i = 0; i < tmp.length(); ++i) if (tmp[i] >= '0' && tmp[i] <= '9') break;
                     for (; i < tmp.length() && tmp[i] >= '0' && tmp[i] <= '9'; i++) x = x * 10 + tmp[i] - '0';
@@ -266,23 +266,21 @@ struct answer {
 
         map<string, int> match_kind;
 
-        for (int i = 0; i < match.size(); i++)
-        {
+        for (int i = 0; i < match.size(); i++) {
+
             if (match[i] == NOT_MATCH) return NOT_MATCH;
-            if (match[i] == DELETE)
-            {
+
+            if (match[i] == DELETE) {
                 node_del++;
 
-                for (int j = 0; j < origin.adj[i].size(); j++)
-                {
+                for (int j = 0; j < origin.adj[i].size(); j++) {
                     auto ed = origin.edges[origin.adj[i][j]];
                     int k = (ed.x == i) ? ed.y : ed.x;
                     if (match[k] != DELETE || (match[k] == DELETE && i < k)) // i < k : avoid duplicated calculation
                         edge_del++;
                 }
-            } else
-            {
-#ifdef debug
+            } else {
+#ifdef DEBUG
                 if (origin.nodes[i].attr == target.nodes[match[i]].attr)
                     match_kind[id_to_attr_str[origin.nodes[i].attr]]++;
 #endif
@@ -308,13 +306,12 @@ struct answer {
             }
         }
 
-        for (int i = 0; i < target_map.size(); i++)
-        {
-            if (target_map[i] == NOT_MATCH) // insert
-            {
+        for (int i = 0; i < target_map.size(); i++) {
+            if (target_map[i] == NOT_MATCH) {
+
                 node_ins++;
-                for (int j = 0; j < target.adj[i].size(); j++)
-                {
+
+                for (int j = 0; j < target.adj[i].size(); j++) {
                     auto ed = target.edges[target.adj[i][j]];
                     int k = (ed.x == i) ? ed.y : ed.x;
 
@@ -323,25 +320,22 @@ struct answer {
                     if (target_map[k] == NOT_MATCH && i < k) // insert - insert : insert an edge !
                         edge_ins++;
                 }
-            } else
-            {
+            } else {
                 //matched node
-                for (int j = 0; j < target.adj[i].size(); j++)
-                {
+                for (int j = 0; j < target.adj[i].size(); j++) {
                     auto ed = target.edges[target.adj[i][j]];
                     int k = (ed.x == i) ? ed.y : ed.x;
 
-                    if (target_map[k] != NOT_MATCH)
-                    {
+                    if (target_map[k] != NOT_MATCH) {
                         if (origin.adj_mat[target_map[i]][target_map[k]] == NOT_MATCH)  // match-match, not matched edge : edge_ins !
                             edge_ins++;
                     }
                 }
             }
         }
+#ifdef debug
 
-        if (is_final == 1)
-        {
+        if (is_final == 1) {
             cout << "node_sub = " << node_sub << endl;
             cout << "node_del = " << node_del << endl;
             cout << "node_ins = " << node_ins << endl;
@@ -351,12 +345,11 @@ struct answer {
             cout << "edge_ins = " << edge_ins << endl;
             cout << "edge_match = " << edge_match << endl;
 
-            for (auto it = match_kind.begin(); it != match_kind.end(); ++it)
-            {
+            for (auto it = match_kind.begin(); it != match_kind.end(); ++it) {
                 cout << it -> first << "_match = " << it -> second << endl;
             }
         }
-
+#endif
         return node_sub * cost_node_sub + (node_ins + node_del) * cost_node_di + edge_sub * cost_edge_sub + (edge_ins + edge_del) * cost_edge_di;
     }
 
@@ -460,12 +453,11 @@ struct answer {
             if (appro_sol < final_ans) final_ans = appro_sol;
             pthread_mutex_unlock(&ans_mutex);
 
-#ifdef BETTER
             //remove a half matching
             answer better = appro_sol;
             //better.fix(thread_id, final_ans);
             for (int i = 0; i < origin.nodes.size(); i++)
-                if (random(3) == 0 || origin.adj[i].size() == 1) {
+                if (random(3) == 0 || origin.adj[i].size() == 1) { // remove node : 1/3 probability or deg = 1
                     if (better.match[i] == DELETE)
                         better.match[i] = NOT_MATCH;
                     else if (better.match[i] >= 0) {
@@ -475,10 +467,10 @@ struct answer {
                 }
             //upd cost
             better.upd_eval_cost(thread_id, final_ans);
-#endif
         }
     }
 
+/*
     void fix(const int thread_id, answer& final_ans) {
 
         answer better = *this;
@@ -497,6 +489,7 @@ struct answer {
 
         better.upd_eval_cost(thread_id, final_ans);
     }
+*/
 
     int calc_edit_cost(const int p, const int q, const int cost_kind) const {
         // p = -1 (insert q)
@@ -511,7 +504,9 @@ struct answer {
         int pure_cost = 0;
         int predict_cost = 0;
 
-				// cerr << "calc_edit_cost (" << p << ", " << q << ")" << endl;
+#ifdef DEBUG
+		cerr << "calc_edit_cost (" << p << ", " << q << ")" << endl;
+#endif
 
         if (p == -1) {
 
@@ -635,11 +630,10 @@ struct answer {
         // printf("cur_cost = %d, eval_cost = %d, total_cost = %d\n", cur_cost, eval_cost, cur_cost + eval_cost);
         printf("\n\ncost = %d\n", cur_cost);
         printf("Match List:");
-        /*
         for(int i = 0; i < match.size(); ++i) {
             printf("%d, ", match[i] == DELETE ? -1 : match[i]);
         }
-        printf("\n"); */
+        printf("\n"); 
     }
 
     bool operator<(const answer& x) const  {
