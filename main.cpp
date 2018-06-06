@@ -720,6 +720,7 @@ void* run(void* args) {
 
 int main(int argc, char* argv[]) {
     auto start_point = std::chrono::system_clock::now();
+    clock_t start_time = clock();
 
     srand(time(0));
 
@@ -747,8 +748,7 @@ int main(int argc, char* argv[]) {
     que.push(empty_answer);
 
     int main_iter_times = 0;
-    clock_t start_time = clock();
-
+    
     while (!que.empty()) {
 #ifdef PARALLEL
         if (que.size() >= PARALLEL_TASK_LIMIT) {
@@ -757,7 +757,7 @@ int main(int argc, char* argv[]) {
 #else
         if (main_iter_times % 100 == 0) {
             double spend_time = static_cast<double>(clock()-start_time)/CLOCKS_PER_SEC;
-            if (abs(TIMELIMIT - spend_time) < 0.2) {
+            if (abs(TIMELIMIT - spend_time) < 0.1) {
                 break;
             }
         }
@@ -801,7 +801,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    sleep(TIMELIMIT - time_before_parallel);
+    usleep((TIMELIMIT - time_before_parallel - 0.1) * 1e6);
 
 #endif
 
