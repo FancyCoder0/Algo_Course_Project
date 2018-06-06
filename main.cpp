@@ -813,7 +813,7 @@ int main(int argc, char* argv[]) {
     final_ans.full_match_cost(1);
     pthread_mutex_unlock(&ans_mutex);
 
-    cout << "run time = " << (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start_point)).count() / 1e6 << "s" << endl;
+    cout << "run time = " << (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start_point)).count() / 1e3 << "s" << endl;
 
     return 0;
 }
