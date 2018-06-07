@@ -9,6 +9,7 @@ using namespace std;
 #define BETTER
 
 #define TIMELIMIT 10
+#define EARLY_TERM 0.05
 #define PARALLEL
 #define NUM_THREADS 4
 #define PARALLEL_TASK_LIMIT 100
@@ -719,8 +720,7 @@ void* run(void* args) {
 
 
 int main(int argc, char* argv[]) {
-    auto start_point = std::chrono::system_clock::now();
-    clock_t start_time = clock();
+    auto start_point = chrono::system_clock::now();
 
     srand(time(0));
 
@@ -756,8 +756,8 @@ int main(int argc, char* argv[]) {
         }
 #else
         if (main_iter_times % 100 == 0) {
-            double spend_time = static_cast<double>(clock()-start_time)/CLOCKS_PER_SEC;
-            if (abs(TIMELIMIT - spend_time) < 0.1) {
+            double spend_time = (chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start_point)).count() / 1e3;
+            if (abs(TIMELIMIT - spend_time) < EARLY_TERM) {
                 break;
             }
         }
@@ -779,8 +779,8 @@ int main(int argc, char* argv[]) {
     }
 
 #ifdef PARALLEL
-    double time_before_parallel = static_cast<double>(clock()-start_time)/CLOCKS_PER_SEC;
-    // printf("time_before_parallel time = %.3lfs\n",time_before_parallel);
+    double time_before_parallel = (chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start_point)).count() / 1e3;
+    printf("time_before_parallel time = %.3lfs\n",time_before_parallel);
     // printf("start parallel search....\n");
 
     pthread_t tids[NUM_THREADS];
@@ -801,7 +801,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    usleep((TIMELIMIT - time_before_parallel - 0.1) * 1e6);
+    usleep((TIMELIMIT - time_before_parallel - EARLY_TERM) * 1e6);
 
 #endif
 
@@ -813,7 +813,7 @@ int main(int argc, char* argv[]) {
     final_ans.full_match_cost(1);
     pthread_mutex_unlock(&ans_mutex);
 
-    cout << "run time = " << (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start_point)).count() / 1e3 << "s" << endl;
+    cout << "run time = " << (chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start_point)).count() / 1e3 << "s" << endl;
 
     return 0;
 }
