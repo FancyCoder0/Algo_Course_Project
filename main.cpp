@@ -9,7 +9,7 @@ using namespace std;
 #define BETTER
 
 #define TIMELIMIT 10
-#define EARLY_TERM 0.05
+#define EARLY_TERM 0.1
 #define PARALLEL
 #define NUM_THREADS 4
 #define PARALLEL_TASK_LIMIT 100
@@ -755,7 +755,7 @@ int main(int argc, char* argv[]) {
             break;
         }
 #else
-        if (main_iter_times % 100 == 0) {
+        if ((++main_iter_times) % 100 == 0) {
             double spend_time = (chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start_point)).count() / 1e3;
             if (abs(TIMELIMIT - spend_time) < EARLY_TERM) {
                 break;
@@ -780,7 +780,7 @@ int main(int argc, char* argv[]) {
 
 #ifdef PARALLEL
     double time_before_parallel = (chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start_point)).count() / 1e3;
-    printf("time_before_parallel time = %.3lfs\n",time_before_parallel);
+    // printf("time_before_parallel time = %.3lfs\n",time_before_parallel);
     // printf("start parallel search....\n");
 
     pthread_t tids[NUM_THREADS];
