@@ -6,13 +6,15 @@
 using namespace std;
 
 //#define DEBUG
+#define debug
 #define BETTER
 
+#define optH
 #define TIMELIMIT 10
 #define EARLY_TERM 0.1
 #define PARALLEL
 #define NUM_THREADS 4
-#define PARALLEL_TASK_LIMIT 100
+#define PARALLEL_TASK_LIMIT 1000
 
 #define DELETE -2
 #define NOT_MATCH -1
@@ -21,7 +23,10 @@ using namespace std;
 
 #define PREDICT_OPT
 
+#define deln(x) cerr << #x << " = " << x << endl
+
 const int MAX_NODE = 210, MAX_EDGE = 1110, INF = int(1e9), BIAS = int(1e5);
+int sb = 0;
 
 pthread_mutex_t ans_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -53,7 +58,8 @@ struct graph {
     vector<int> adj[MAX_NODE]; // for each node the vector contains all the edges.
     map<string, int> name_to_id;
     int adj_mat[MAX_NODE][MAX_NODE]; // adjacent matrix
-
+    vector<int> adj_H[MAX_NODE];
+    bool is_H[MAX_NODE];
 
     void read_from_gxl(const string file) {
 
@@ -152,6 +158,17 @@ struct graph {
             }
 
         }
+
+        // find H !
+        for (int i = 0; i < nodes.size(); i++)
+            if (adj[i].size() == 1)
+            {
+                is_H[i] = true;
+                auto ed = edges[adj[i][0]];
+                int j = (ed.x == i) ? ed.y : ed.x;
+                adj_H[j].push_back(i);
+            } else 
+                is_H[i] = false;
 
         //fclose(stdin);
     }
@@ -262,6 +279,7 @@ struct answer {
         int edge_match = 0;
 
         map<string, int> match_kind;
+        map<pair<int, int>, int> edge_match_list;
 
         for (int i = 0; i < match.size(); i++) {
 
@@ -277,7 +295,7 @@ struct answer {
                         edge_del++;
                 }
             } else {
-#ifdef DEBUG
+#ifdef debug
                 if (origin.nodes[i].attr == target.nodes[match[i]].attr)
                     match_kind[id_to_attr_str[origin.nodes[i].attr]]++;
 #endif
@@ -293,6 +311,8 @@ struct answer {
                     {
                         if (target.adj_mat[match[i]][match[k]] != NOT_MATCH)
                         {
+                            if (ed.attr == target.edges[target.adj_mat[match[i]][match[k]]].attr)
+                                edge_match_list[make_pair(origin.nodes[i].attr, origin.nodes[k].attr)]++;
                             // edge_sub
                             edge_sub += (ed.attr != target.edges[target.adj_mat[match[i]][match[k]]].attr);
                             edge_match += (ed.attr == target.edges[target.adj_mat[match[i]][match[k]]].attr);
@@ -345,6 +365,9 @@ struct answer {
             for (auto it = match_kind.begin(); it != match_kind.end(); ++it) {
                 cout << it -> first << "_match = " << it -> second << endl;
             }
+            for (auto it = edge_match_list.begin(); it != edge_match_list.end(); ++it) {
+                cout << id_to_attr_str[it -> first.first] << '-' << id_to_attr_str[it -> first.second]<< " match = " << it -> second << endl;
+            }
         }
 #endif
         return node_sub * cost_node_sub + (node_ins + node_del) * cost_node_di + edge_sub * cost_edge_sub + (edge_ins + edge_del) * cost_edge_di;
@@ -368,11 +391,19 @@ struct answer {
         vector<int> origin_not_match_list;
         for (int i = 0; i < match.size(); ++i) {
             if (match[i] == NOT_MATCH) {
+#ifdef optH
+                if (origin.is_H[i]) continue; // 
+#endif 
+                
                 origin_not_match_list.push_back(i);
             }
         }
         for (int i = 0; i < target_map.size(); ++i) {
             if (target_map[i] == NOT_MATCH) {
+#ifdef optH
+                if (target.is_H[i]) continue; // 
+#endif 
+
                 target_not_match_list.push_back(i);
             }
         }
@@ -437,8 +468,58 @@ struct answer {
                 }
         }
 
+#ifdef optH
+
+        vector<int> not_match_H;
+        bool label[MAX_NODE];
+        memset(label, 0, sizeof(label));
+        //add H !
+        for (int i = 0; i < origin.nodes.size(); i++)
+            if (!origin.is_H[i])
+            {
+                int v = appro_sol.match[i];
+                for (int j = 0; j < origin.adj_H[i].size(); j++)
+                {
+                    if (v != DELETE && j < target.adj_H[v].size())
+                    {
+                        appro_sol.match[origin.adj_H[i][j]] = target.adj_H[v][j];
+                        appro_sol.target_map[target.adj_H[v][j]] = origin.adj_H[i][j];
+                    }
+                    else 
+                        not_match_H.push_back(origin.adj_H[i][j]);
+                }
+            }
+
+        int j = 0;
+        for (int i = 0; i < not_match_H.size(); i++)
+        {
+            for (; j < target.nodes.size(); j++)
+                if (target.is_H[j] && target_map[j] == NOT_MATCH)
+                    break;
+
+            if (j < target.nodes.size())
+            {
+                appro_sol.match[not_match_H[i]] = j, 
+                target_map[j] = not_match_H[i];
+            } else 
+                appro_sol.match[not_match_H[i]] = DELETE;
+        } 
+#endif 
+
         appro_sol.cur_cost = appro_sol.full_match_cost();
         appro_sol.eval_cost = 0;
+
+        /*
+        ++sb;
+        if (sb <= 10)
+        {
+            deln(sb);
+            for (int i = 0; i < appro_sol.match.size(); i++)
+                cerr << appro_sol.match[i] << " ";
+            cerr << endl;
+        }
+
+        */
 
 #ifdef DEBUG
         printf("appro=");
@@ -507,12 +588,17 @@ struct answer {
 
         if (p == -1) {
 
+
             pure_cost += cost_node_di; // insert
 
             for (int k = 0; k < target.adj[q].size(); ++k) {
 
                 auto ed = target.edges[target.adj[q][k]];
                 int v = (ed.x == q) ? ed.y : ed.x; // v : q's adjacent node
+
+#ifdef optH
+                if (target.is_H[v]) continue;
+#endif
 
                 if (target_map[v] == NOT_MATCH) {
                     // if adjacent node has not been matched, assign a half 'edge_insert' cost to current node
@@ -530,6 +616,10 @@ struct answer {
 
                 auto ed = origin.edges[origin.adj[p][k]];
                 int v = (ed.x == p) ? ed.y : ed.x; // v : p's adjacent node
+
+#ifdef optH
+                if (origin.is_H[v]) continue;
+#endif
 
                 if (match[v] == NOT_MATCH) {
                     // if adjacent node has not been matched, assign a half 'edge_delete' cost to current node
@@ -555,6 +645,9 @@ struct answer {
             for (int k = 0; k < origin.adj[p].size(); ++k) { // scan p's adjacent edge.
                 auto ed = origin.edges[origin.adj[p][k]];
                 int u = (ed.x == p) ? ed.y : ed.x; // u : p's adjacent node
+#ifdef optH
+                if (origin.is_H[u]) continue; // 
+#endif
 
                 if (match[u] != NOT_MATCH) {
 
@@ -585,6 +678,9 @@ struct answer {
             for (int k = 0; k < target.adj[q].size(); ++k) {
                 auto ed = target.edges[target.adj[q][k]];
                 int v = (ed.x == q) ? ed.y : ed.x; // v : p's adjacent node
+#ifdef optH
+                if (target.is_H[v]) continue;
+#endif
 
                 if (target_map[v] != NOT_MATCH) {
 
@@ -656,6 +752,9 @@ vector<answer> get_next_list(const int thread_id, const answer now) {
 
             for (int q = 0; q < now.target_map.size(); ++q) {
                 if (now.target_map[q] == NOT_MATCH) {
+#ifdef optH
+                    if (target.is_H[q]) continue;
+#endif                        
                     // p -> q
                     ret = now;
                     ret.match[p] = q;
@@ -712,6 +811,7 @@ void* run(void* args) {
         }
     }
 
+    cerr << "early stop!" << endl;
 
 #ifdef DEBUG
     printf("thread %d is finished!\n", thread_id);
