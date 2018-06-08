@@ -539,16 +539,16 @@ struct answer {
         bool changed = false;
         for (int i = 0; i < match.size(); i++) {
         	if (match[i] == NOT_MATCH) {
-            if (random(3) < 2) { // remove node : 2/3 probability
-            		changed = true;
-                if (better.match[i] == DELETE)
-                    better.match[i] = NOT_MATCH;
-                else if (better.match[i] >= 0) {
-                    better.target_map[better.match[i]] = NOT_MATCH;
-                    better.match[i] = NOT_MATCH;
+                if (random(3) < 2) { // remove node : 2/3 probability
+                    changed = true;
+                    if (better.match[i] == DELETE)
+                        better.match[i] = NOT_MATCH;
+                    else if (better.match[i] >= 0) {
+                        better.target_map[better.match[i]] = NOT_MATCH;
+                        better.match[i] = NOT_MATCH;
+                    }
                 }
             }
-          }
         }
         //upd cost
         if (changed) {
