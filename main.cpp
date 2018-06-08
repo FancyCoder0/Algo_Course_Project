@@ -1,7 +1,6 @@
 #include <bits/stdc++.h>
 
 #include <pthread.h>
-#include <unistd.h>
 
 using namespace std;
 
@@ -901,7 +900,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    usleep((TIMELIMIT - time_before_parallel - EARLY_TERM) * 1e6);
+    this_thread::sleep_for(std::chrono::milliseconds(int((TIMELIMIT - time_before_parallel - EARLY_TERM) * 1e3)));
 
 #endif
 
