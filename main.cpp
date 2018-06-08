@@ -9,11 +9,11 @@ using namespace std;
 #define BETTER
 
 #define optH
-#define TIMELIMIT 10
+#define TIMELIMIT 30
 #define EARLY_TERM 0.1
 #define PARALLEL
 #define NUM_THREADS 4
-#define PARALLEL_TASK_LIMIT 1000
+#define PARALLEL_TASK_LIMIT 100
 
 #define DELETE -2
 #define NOT_MATCH -1
@@ -530,21 +530,31 @@ struct answer {
             if (appro_sol < final_ans) final_ans = appro_sol;
             pthread_mutex_unlock(&ans_mutex);
 
-            //remove a half matching
-            answer better = appro_sol;
-            //better.fix(thread_id, final_ans);
-            for (int i = 0; i < origin.nodes.size(); i++)
-                if (random(3) == 0 || origin.adj[i].size() == 1) { // remove node : 1/3 probability or deg = 1
-                    if (better.match[i] == DELETE)
-                        better.match[i] = NOT_MATCH;
-                    else if (better.match[i] >= 0) {
-                        better.target_map[better.match[i]] = NOT_MATCH;
-                        better.match[i] = NOT_MATCH;
-                    }
-                }
-            //upd cost
-            better.upd_eval_cost(thread_id, final_ans);
         }
+
+        
+      	//remove a some matching
+        answer better = appro_sol;
+        //better.fix(thread_id, final_ans);
+        bool changed = false;
+        for (int i = 0; i < match.size(); i++) {
+        	if (match[i] == NOT_MATCH) {
+            if (random(3) < 2) { // remove node : 2/3 probability
+            		changed = true;
+                if (better.match[i] == DELETE)
+                    better.match[i] = NOT_MATCH;
+                else if (better.match[i] >= 0) {
+                    better.target_map[better.match[i]] = NOT_MATCH;
+                    better.match[i] = NOT_MATCH;
+                }
+            }
+          }
+        }
+        //upd cost
+        if (changed) {
+        	better.upd_eval_cost(thread_id, final_ans);
+        }
+
     }
 
 /*
@@ -821,7 +831,7 @@ void* run(void* args) {
 int main(int argc, char* argv[]) {
     auto start_point = chrono::system_clock::now();
 
-    srand(time(0));
+    srand(12345);
 
     cost_node_sub = atoi(argv[1]) * 2;  // convenient for divide 2
     cost_node_di = atoi(argv[2]) * 2;
@@ -859,6 +869,7 @@ int main(int argc, char* argv[]) {
             if (abs(TIMELIMIT - spend_time) < EARLY_TERM) {
                 break;
             }
+            // printf("%d : %d\n", main_iter_times, final_ans.cur_cost);
         }
 #endif
 
