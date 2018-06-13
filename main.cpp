@@ -24,8 +24,9 @@ using namespace std;
 
 #define deln(x) cerr << #x << " = " << x << endl
 
-const int MAX_NODE = 210, MAX_EDGE = 1110, INF = int(1e9), BIAS = int(1e5);
+const int MAX_NODE = 80, MAX_EDGE = 1110, INF = int(1e9), BIAS = int(1e5);
 int sb = 0;
+int min_cost = 10000;
 
 pthread_mutex_t ans_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -46,6 +47,7 @@ struct edge {
 map<string, int> attr_str_to_id;
 map<int, string> id_to_attr_str;
 int attr_num = 0;
+vector<int> sorted_list;
 
 struct graph {
     int n; // #nodes
@@ -160,8 +162,7 @@ struct graph {
 
         // find H !
         for (int i = 0; i < nodes.size(); i++)
-            if (adj[i].size() == 1)
-            {
+            if (id_to_attr_str[nodes[i].attr] == "H") {
                 is_H[i] = true;
                 auto ed = edges[adj[i][0]];
                 int j = (ed.x == i) ? ed.y : ed.x;
@@ -169,7 +170,6 @@ struct graph {
             } else 
                 is_H[i] = false;
 
-        //fclose(stdin);
     }
 };
 
@@ -349,7 +349,7 @@ struct answer {
                 }
             }
         }
-#ifdef debug
+#ifdef DEBUG
 
         if (is_final == 1) {
             cout << "node_sub = " << node_sub << endl;
@@ -369,9 +369,16 @@ struct answer {
             }
         }
 #endif
-        return node_sub * cost_node_sub + (node_ins + node_del) * cost_node_di + edge_sub * cost_edge_sub + (edge_ins + edge_del) * cost_edge_di;
+        int all = node_sub * cost_node_sub + (node_ins + node_del) * cost_node_di + edge_sub * cost_edge_sub + (edge_ins + edge_del) * cost_edge_di;
+#ifdef DEBUG
+        if (all < min_cost) {
+            min_cost = all;
+            int mc = min_cost / 2; 
+            deln(mc);
+        }
+#endif
+        return all;
     }
-
 
     void upd_eval_cost(const int thread_id, answer& final_ans) {
         if (finish()) {
@@ -474,13 +481,10 @@ struct answer {
         memset(label, 0, sizeof(label));
         //add H !
         for (int i = 0; i < origin.nodes.size(); i++)
-            if (!origin.is_H[i])
-            {
+            if (!origin.is_H[i]) {
                 int v = appro_sol.match[i];
-                for (int j = 0; j < origin.adj_H[i].size(); j++)
-                {
-                    if (v != DELETE && j < target.adj_H[v].size())
-                    {
+                for (int j = 0; j < origin.adj_H[i].size(); j++) {
+                    if (v != DELETE && j < target.adj_H[v].size()) {
                         appro_sol.match[origin.adj_H[i][j]] = target.adj_H[v][j];
                         appro_sol.target_map[target.adj_H[v][j]] = origin.adj_H[i][j];
                     }
@@ -490,14 +494,12 @@ struct answer {
             }
 
         int j = 0;
-        for (int i = 0; i < not_match_H.size(); i++)
-        {
+        for (int i = 0; i < not_match_H.size(); i++) {
             for (; j < target.nodes.size(); j++)
                 if (target.is_H[j] && target_map[j] == NOT_MATCH)
                     break;
 
-            if (j < target.nodes.size())
-            {
+            if (j < target.nodes.size()) {
                 appro_sol.match[not_match_H[i]] = j, 
                 target_map[j] = not_match_H[i];
             } else 
@@ -507,18 +509,6 @@ struct answer {
 
         appro_sol.cur_cost = appro_sol.full_match_cost();
         appro_sol.eval_cost = 0;
-
-        /*
-        ++sb;
-        if (sb <= 10)
-        {
-            deln(sb);
-            for (int i = 0; i < appro_sol.match.size(); i++)
-                cerr << appro_sol.match[i] << " ";
-            cerr << endl;
-        }
-
-        */
 
 #ifdef DEBUG
         printf("appro=");
@@ -556,27 +546,6 @@ struct answer {
         }
 
     }
-
-/*
-    void fix(const int thread_id, answer& final_ans) {
-
-        answer better = *this;
-        for (int i = 0; i < origin.nodes.size(); ++i)
-        {
-            if (origin.adj[i].size() == 1)
-            {
-                if (better.match[i] == DELETE)
-                        better.match[i] = NOT_MATCH;
-                    else if (better.match[i] >= 0) {
-                        better.target_map[better.match[i]] = NOT_MATCH;
-                        better.match[i] = NOT_MATCH;
-                }
-            }
-        }
-
-        better.upd_eval_cost(thread_id, final_ans);
-    }
-*/
 
     int calc_edit_cost(const int p, const int q, const int cost_kind) const {
         // p = -1 (insert q)
@@ -675,10 +644,9 @@ struct answer {
                         // adjacent to a matched node, but have to delete edge : full cost
                         pure_cost += cost_edge_di;
                     }
-                } else
+                } else { 
                     // not matched edge -> delete : a half cost
                     //predict_cost += cost_edge_di / 2;
-                {
                     deg_p ++;
                     p_edge_set[ed.attr] += 1;
                 }
@@ -696,26 +664,22 @@ struct answer {
                     int u = target_map[v];
                     if (origin.adj_mat[u][p] == NOT_MATCH)  // a matched node, but not adjacent to p, full cost
                         pure_cost += cost_edge_di;
-                } else
+                } else {
                     //predict_cost += cost_edge_di / 2;
-                {
                     deg_q++;
                     q_edge_set[ed.attr] += 1;
                 }
             }
 
             int zero_cost_edge = 0;
-            for (auto it = p_edge_set.begin(); it != p_edge_set.end(); ++it)
-            {
+            for (auto it = p_edge_set.begin(); it != p_edge_set.end(); ++it) { 
                 int attr = it -> first;
                 zero_cost_edge += min(it -> second, q_edge_set[attr]);
             }
 
-            if (deg_p > deg_q)
-            {
+            if (deg_p > deg_q) { 
                 predict_cost = (deg_q - zero_cost_edge) * cost_edge_sub + (deg_p - deg_q) * cost_edge_di;
-            } else
-            {
+            } else { 
                 predict_cost = (deg_p - zero_cost_edge) * cost_edge_sub + (deg_q - deg_p) * cost_edge_di;
             }
 
@@ -727,7 +691,6 @@ struct answer {
     }
 
     void print() {
-        // printf("cur_cost = %d, eval_cost = %d, total_cost = %d\n", cur_cost, eval_cost, cur_cost + eval_cost);
         printf("cost = %d\n", cur_cost);
         printf("Match List:");
         for(int i = 0; i < match.size(); ++i) {
@@ -741,7 +704,6 @@ struct answer {
     }
     bool operator<=(const answer& x) const {
         return cur_cost + eval_cost <= x.cur_cost + x.eval_cost;
-        // return !(x < *this);
     }
 };
 
@@ -749,7 +711,12 @@ answer final_ans;
 
 vector<answer> get_next_list(const int thread_id, const answer now) {
     vector<answer> v;
-    for (int p = 0; p < now.match.size(); ++p) {
+    for (int i = 0; i < sorted_list.size(); ++i) { 
+
+        int p = sorted_list[i];
+
+        if (origin.is_H[p] == 1) continue;
+
         if (now.match[p] == NOT_MATCH) {
             auto ret = now;
 
@@ -779,6 +746,25 @@ vector<answer> get_next_list(const int thread_id, const answer now) {
     return v;
 }
 
+vector<int> generate_sorted_list(answer &now) {
+
+    vector<pair<int, int> > list;
+    for (int i = 0; i < now.match.size(); i++)  {
+        if (now.match[i] == DELETE)
+            list.push_back(make_pair(now.calc_edit_cost(i, -1, PURE_COST), i));
+        else 
+            list.push_back(make_pair(now.calc_edit_cost(i, now.match[i], PURE_COST), i));
+    }
+
+    sort(list.begin(), list.end());
+
+    vector<int> ret;
+
+    for (int i = 0; i < list.size(); i++) {
+        ret.push_back(list[i].second);
+    }
+    return ret;
+}
 
 struct cmp {
     bool operator() (const answer& a, const answer& b) const {
@@ -820,9 +806,9 @@ void* run(void* args) {
         }
     }
 
+#ifdef DEBUG
     cerr << "early stop!" << endl;
 
-#ifdef DEBUG
     printf("thread %d is finished!\n", thread_id);
 #endif
 }
@@ -831,7 +817,8 @@ void* run(void* args) {
 int main(int argc, char* argv[]) {
     auto start_point = chrono::system_clock::now();
 
-    srand(12345);
+    //srand(12345);
+    srand(time(0));
 
     cost_node_sub = atoi(argv[1]) * 2;  // convenient for divide 2
     cost_node_di = atoi(argv[2]) * 2;
@@ -854,6 +841,10 @@ int main(int argc, char* argv[]) {
         0, 0, vector<int>((int)origin.nodes.size(), NOT_MATCH), vector<int>((int)target.nodes.size(), NOT_MATCH)
     };
     empty_answer.upd_eval_cost(0, final_ans);
+
+    // generate sorted list
+    sorted_list = generate_sorted_list(final_ans);
+
     que.push(empty_answer);
 
     int main_iter_times = 0;
@@ -914,8 +905,6 @@ int main(int argc, char* argv[]) {
     this_thread::sleep_for(std::chrono::milliseconds(int((TIMELIMIT - time_before_parallel - EARLY_TERM) * 1e3)));
 
 #endif
-
-//    final_ans.fix(0, final_ans);
 
     pthread_mutex_lock(&ans_mutex);
     final_ans.cur_cost /= 2;
