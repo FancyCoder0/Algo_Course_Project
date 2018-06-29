@@ -7,9 +7,11 @@ using namespace std;
 //#define DEBUG
 #define debug
 #define BETTER
+#define PRINT_UPD
+#define PRINT_THREAD
 
 #define optH
-#define TIMELIMIT 10
+#define TIMELIMIT 30
 #define EARLY_TERM 0.1
 #define PARALLEL
 #define NUM_THREADS 4
@@ -252,7 +254,7 @@ struct flow {
 } flow_g[NUM_THREADS];
 
 struct answer {
-    int cur_cost, eval_cost;
+    int cur_cost, eval_cost, appro_final_cost, last_match;
     vector<int> match; // match: NOT_MATCH: -1, DELETE: -2, other: 0 ~ n - 1
     vector<int> target_map; // for each node in target graph mark the matched node's index in origin graph.
 
@@ -383,10 +385,14 @@ struct answer {
     void upd_eval_cost(const int thread_id, answer& final_ans) {
         if (finish()) {
             cur_cost = full_match_cost();
+            appro_final_cost = cur_cost;
             eval_cost = 0;
             if (*this < final_ans) {
                 pthread_mutex_lock(&ans_mutex);
                 if (*this < final_ans) final_ans = *this;
+                #ifdef PRINT_UPD
+                    printf("upd cost = %d\n", final_ans.cur_cost);
+                #endif
                 pthread_mutex_unlock(&ans_mutex);
             }
             return;
@@ -455,8 +461,6 @@ struct answer {
 
         eval_cost = g->solve() + (lenx - 1 + leny - 1) * BIAS;
 
-        assert(eval_cost >= 0);
-
         answer appro_sol = *this;
         for (int i = 0; i < lenx - 1; ++i) {
             appro_sol.match[origin_not_match_list[i]] = DELETE;
@@ -522,11 +526,14 @@ struct answer {
 #endif 
 
         appro_sol.cur_cost = appro_sol.full_match_cost();
+        appro_sol.appro_final_cost = appro_sol.cur_cost;
+        appro_sol.eval_cost = 0;
 
         ////
         eval_cost = max((appro_sol.cur_cost - cur_cost) * 5 / 10, eval_cost);
 
-        appro_sol.eval_cost = 0;
+        appro_final_cost = appro_sol.cur_cost;
+        
 
 #ifdef DEBUG
         printf("appro=");
@@ -536,6 +543,9 @@ struct answer {
         if (appro_sol < final_ans) {
             pthread_mutex_lock(&ans_mutex);
             if (appro_sol < final_ans) final_ans = appro_sol;
+            #ifdef PRINT_UPD
+                printf("upd cost = %d\n", final_ans.cur_cost);
+            #endif
             pthread_mutex_unlock(&ans_mutex);
 
         }
@@ -729,7 +739,7 @@ answer final_ans;
 
 vector<answer> get_next_list(const int thread_id, const answer now) {
     vector<answer> v;
-    for (int i = 0; i < sorted_list.size(); ++i) { 
+    for (int i = now.last_match + 1; i < sorted_list.size(); ++i) { 
 
         int p = sorted_list[i];
 
@@ -741,6 +751,7 @@ vector<answer> get_next_list(const int thread_id, const answer now) {
             // p -> empty
             ret.match[p] = DELETE;
             ret.cur_cost += now.calc_edit_cost(p, -1, PURE_COST); // delete cost
+            ret.last_match = i;
             ret.upd_eval_cost(thread_id, final_ans);
             v.push_back(ret);
 
@@ -754,6 +765,7 @@ vector<answer> get_next_list(const int thread_id, const answer now) {
                     ret.match[p] = q;
                     ret.target_map[q] = p;
                     ret.cur_cost += now.calc_edit_cost(p, q, PURE_COST); // subtitute cost
+                    ret.last_match = i;
                     ret.upd_eval_cost(thread_id, final_ans);
                     v.push_back(ret);
                 }
@@ -804,7 +816,7 @@ void* run(void* args) {
 
     int thread_id = (*st).thread_id;
 
-#ifdef DEBUG
+#ifdef PRINT_THREAD
     printf("thread %d start!\n", thread_id);
 #endif
 
@@ -824,9 +836,8 @@ void* run(void* args) {
         }
     }
 
-#ifdef DEBUG
-    cerr << "early stop!" << endl;
-
+#ifdef PRINT_THREAD
+    // cerr << "early stop!" << endl;
     printf("thread %d is finished!\n", thread_id);
 #endif
 }
@@ -835,8 +846,8 @@ void* run(void* args) {
 int main(int argc, char* argv[]) {
     auto start_point = chrono::system_clock::now();
 
-    srand(12345);
-    //srand(time(0));
+    //srand(12345);
+    srand(time(0));
 
     cost_node_sub = atoi(argv[1]) * 2;  // convenient for divide 2
     cost_node_di = atoi(argv[2]) * 2;
@@ -856,7 +867,7 @@ int main(int argc, char* argv[]) {
     priority_queue<answer, vector<answer>, cmp> que;
 
     answer empty_answer = (answer) {
-        0, 0, vector<int>((int)origin.nodes.size(), NOT_MATCH), vector<int>((int)target.nodes.size(), NOT_MATCH)
+        0, 0, 0, -1, vector<int>((int)origin.nodes.size(), NOT_MATCH), vector<int>((int)target.nodes.size(), NOT_MATCH)
     };
     empty_answer.upd_eval_cost(0, final_ans);
 
