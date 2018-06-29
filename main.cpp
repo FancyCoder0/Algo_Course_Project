@@ -9,7 +9,7 @@ using namespace std;
 #define BETTER
 
 #define optH
-#define TIMELIMIT 30
+#define TIMELIMIT 10
 #define EARLY_TERM 0.1
 #define PARALLEL
 #define NUM_THREADS 4
@@ -474,7 +474,10 @@ struct answer {
                 }
         }
 
+
 #ifdef optH
+
+        int cost_of_H = 0;
 
         vector<int> not_match_H;
         bool label[MAX_NODE];
@@ -502,12 +505,27 @@ struct answer {
             if (j < target.nodes.size()) {
                 appro_sol.match[not_match_H[i]] = j, 
                 target_map[j] = not_match_H[i];
+                cost_of_H += 2 * cost_edge_di;
             } else 
+            {
                 appro_sol.match[not_match_H[i]] = DELETE;
+                cost_of_H += cost_edge_di + cost_node_di;
+            }
         } 
+
+        for (int i = 0; i < target.nodes.size(); i++) {
+            if (target.is_H[i] && appro_sol.target_map[i] == NOT_MATCH)
+                cost_of_H += cost_edge_di + cost_node_di;
+        }
+
+        eval_cost += cost_of_H;
 #endif 
 
         appro_sol.cur_cost = appro_sol.full_match_cost();
+
+        ////
+        eval_cost = max((appro_sol.cur_cost - cur_cost) * 5 / 10, eval_cost);
+
         appro_sol.eval_cost = 0;
 
 #ifdef DEBUG
@@ -817,8 +835,8 @@ void* run(void* args) {
 int main(int argc, char* argv[]) {
     auto start_point = chrono::system_clock::now();
 
-    //srand(12345);
-    srand(time(0));
+    srand(12345);
+    //srand(time(0));
 
     cost_node_sub = atoi(argv[1]) * 2;  // convenient for divide 2
     cost_node_di = atoi(argv[2]) * 2;
@@ -860,7 +878,7 @@ int main(int argc, char* argv[]) {
             if (abs(TIMELIMIT - spend_time) < EARLY_TERM) {
                 break;
             }
-            // printf("%d : %d\n", main_iter_times, final_ans.cur_cost);
+            printf("%d : %d\n", main_iter_times, final_ans.cur_cost);
         }
 #endif
 
