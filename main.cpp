@@ -7,8 +7,8 @@ using namespace std;
 //#define DEBUG
 #define debug
 #define BETTER
-#define PRINT_UPD
-#define PRINT_THREAD
+//#define PRINT_UPD
+//#define PRINT_THREAD
 
 #define optH
 #define TIMELIMIT 30
@@ -529,8 +529,9 @@ struct answer {
         appro_sol.appro_final_cost = appro_sol.cur_cost;
         appro_sol.eval_cost = 0;
 
-        ////
-        eval_cost = max((appro_sol.cur_cost - cur_cost) * 5 / 10, eval_cost);
+        if (match.size() >= 40) {
+        	eval_cost = max((appro_sol.cur_cost - cur_cost) * 5 / 10, eval_cost);
+        }
 
         appro_final_cost = appro_sol.cur_cost;
         
