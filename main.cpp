@@ -529,10 +529,6 @@ struct answer {
         appro_sol.appro_final_cost = appro_sol.cur_cost;
         appro_sol.eval_cost = 0;
 
-        if (match.size() >= 40) {
-        	eval_cost = max((appro_sol.cur_cost - cur_cost) * 5 / 10, eval_cost);
-        }
-
         appro_final_cost = appro_sol.cur_cost;
         
 
@@ -552,7 +548,7 @@ struct answer {
         }
 
         
-      	//remove a some matching
+      	//remove some match
         answer better = appro_sol;
         //better.fix(thread_id, final_ans);
         bool changed = false;
@@ -572,8 +568,12 @@ struct answer {
         //upd cost
         if (changed) {
         	better.upd_eval_cost(thread_id, final_ans);
+        	appro_final_cost = min(appro_final_cost, better.appro_final_cost);
         }
 
+        if (match.size() >= 40) {
+        	eval_cost = max((appro_final_cost - cur_cost) * 5 / 10, eval_cost);
+        }
     }
 
     int calc_edit_cost(const int p, const int q, const int cost_kind) const {
