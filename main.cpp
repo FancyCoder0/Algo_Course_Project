@@ -15,7 +15,7 @@ using namespace std;
 #define EARLY_TERM 0.1
 #define PARALLEL
 #define NUM_THREADS 4
-#define PARALLEL_TASK_LIMIT 100
+#define PARALLEL_TASK_LIMIT 1000
 
 #define DELETE -2
 #define NOT_MATCH -1
@@ -573,7 +573,7 @@ struct answer {
         	appro_final_cost = min(appro_final_cost, better.appro_final_cost);
         }
 
-        if (match.size() >= 40) {
+        if (match.size() >= 40 && last_match > 10) {
         	eval_cost = max((appro_final_cost - cur_cost) * 5 / 10, eval_cost);
         }
     }
