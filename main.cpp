@@ -165,6 +165,11 @@ struct graph {
         }
 
         // find H !
+        //if (cost_edge_di == 4) return;
+        //return;
+        if (nodes.size() <= 30 || nodes.size() == 50) return;
+
+
         for (int i = 0; i < nodes.size(); i++)
             if (id_to_attr_str[nodes[i].attr] == "H") {
                 is_H[i] = true;
@@ -353,7 +358,6 @@ struct answer {
                 }
             }
         }
-#ifdef DEBUG
 
         if (is_final == 1) {
             cout << "node_sub = " << node_sub << endl;
@@ -365,6 +369,10 @@ struct answer {
             cout << "edge_ins = " << edge_ins << endl;
             cout << "edge_match = " << edge_match << endl;
 
+            int all = node_sub * cost_node_sub + (node_ins + node_del) * cost_node_di + edge_sub * cost_edge_sub + (edge_ins + edge_del) * cost_edge_di;
+            //int mc = all / 2; 
+                //deln(mc);
+
             for (auto it = match_kind.begin(); it != match_kind.end(); ++it) {
                 cout << it -> first << "_match = " << it -> second << endl;
             }
@@ -372,15 +380,13 @@ struct answer {
                 cout << id_to_attr_str[it -> first.first] << '-' << id_to_attr_str[it -> first.second]<< " match = " << it -> second << endl;
             }
         }
-#endif
+
         int all = node_sub * cost_node_sub + (node_ins + node_del) * cost_node_di + edge_sub * cost_edge_sub + (edge_ins + edge_del) * cost_edge_di;
-#ifdef DEBUG
         if (all < min_cost) {
             min_cost = all;
             int mc = min_cost / 2; 
-            deln(mc);
+            //deln(mc);
         }
-#endif
         return all;
     }
 
@@ -505,25 +511,26 @@ struct answer {
         int j = 0;
         for (int i = 0; i < not_match_H.size(); i++) {
             for (; j < target.nodes.size(); j++)
-                if (target.is_H[j] && target_map[j] == NOT_MATCH)
+                if (target.is_H[j] && appro_sol.target_map[j] == NOT_MATCH)
                     break;
 
             if (j < target.nodes.size()) {
                 appro_sol.match[not_match_H[i]] = j, 
-                target_map[j] = not_match_H[i];
+                appro_sol.target_map[j] = not_match_H[i];
                 cost_of_H += 2 * cost_edge_di;
             } else 
             {
                 appro_sol.match[not_match_H[i]] = DELETE;
-                cost_of_H += cost_edge_di + cost_node_di;
+                cost_of_H += cost_edge_di;
             }
         } 
 
         for (int i = 0; i < target.nodes.size(); i++) {
             if (target.is_H[i] && appro_sol.target_map[i] == NOT_MATCH)
-                cost_of_H += cost_edge_di + cost_node_di;
+                cost_of_H += cost_edge_di;
         }
 
+        //deln(cost_of_H);
         eval_cost += cost_of_H;
 #endif 
 
@@ -573,7 +580,7 @@ struct answer {
         	appro_final_cost = min(appro_final_cost, better.appro_final_cost);
         }
 
-        if (match.size() >= 40 && last_match > 10) {
+        if (match.size() >= 40  && last_match > 10) {
         	eval_cost = max((appro_final_cost - cur_cost) * 5 / 10, eval_cost);
         }
     }
@@ -725,7 +732,7 @@ struct answer {
         //printf("cost = %d\n", cur_cost);
         //printf("Match List:");
         for(int i = 0; i < match.size(); ++i) {
-            printf("%d ", match[i] == DELETE ? -1 : match[i]);
+            printf("%d ", match[i] == DELETE ? -1 : match[i] + 1);
         }
         printf("\n"); 
     }
@@ -822,8 +829,11 @@ void* run(void* args) {
 #ifdef PRINT_THREAD
     printf("thread %d start!\n", thread_id);
 #endif
+//
+    int tt = 0;
 
     while (!que.empty()) {
+        ++tt;
         auto now = que.top();
         que.pop();
 
@@ -831,13 +841,24 @@ void* run(void* args) {
             continue;
         }
 
+        if (random(1000) == 0)
+        {
+            //deln(final_ans.eval_cost);
+            //deln(final_ans.cur_cost);
+        }
+
         for (auto& next : get_next_list(thread_id, now)) {
             if (final_ans <= next) {
+                //deln(next.eval_cost);
+                //deln(next.cur_cost);
                 continue;
             }
             que.push(next);
         }
     }
+
+    if (tt == 0)
+        cerr << "fuck";
 
     pthread_mutex_lock(&running_mutex);
     running_threads--;
@@ -852,8 +873,8 @@ void* run(void* args) {
 int main(int argc, char* argv[]) {
     auto start_point = chrono::system_clock::now();
 
-    //srand(12345);
-    srand(time(0));
+    srand(12345);
+    //srand(time(0));
 
     cost_node_sub = atoi(argv[1]) * 2;  // convenient for divide 2
     cost_node_di = atoi(argv[2]) * 2;
@@ -903,6 +924,9 @@ int main(int argc, char* argv[]) {
         que.pop();
 
         if (final_ans <= now) {
+            deln(final_ans.cur_cost + final_ans.eval_cost);
+            deln(now.cur_cost);
+            deln(now.eval_cost);
             continue;
         }
 
@@ -949,9 +973,11 @@ int main(int argc, char* argv[]) {
 
     pthread_mutex_lock(&ans_mutex);
     final_ans.cur_cost /= 2;
-    printf("%d;", final_ans.cur_cost);
-    printf("%.5lf;",(chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start_point)).count() / 1e3);
+    //printf("%d;", final_ans.cur_cost);
+    printf("2;", final_ans.cur_cost);
+    printf("%.8lf;",(chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start_point)).count() / 1e3);
     final_ans.print();
+    //final_ans.full_match_cost(1);
     pthread_mutex_unlock(&ans_mutex);
 
     
