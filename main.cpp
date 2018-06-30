@@ -30,7 +30,9 @@ const int MAX_NODE = 80, MAX_EDGE = 1110, INF = int(1e9), BIAS = int(1e5);
 int sb = 0;
 int min_cost = 10000;
 
+volatile int running_threads = 0;
 pthread_mutex_t ans_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t running_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int cost_node_sub, cost_node_di, cost_edge_sub, cost_edge_di;
 
@@ -720,10 +722,10 @@ struct answer {
     }
 
     void print() {
-        printf("cost = %d\n", cur_cost);
-        printf("Match List:");
+        //printf("cost = %d\n", cur_cost);
+        //printf("Match List:");
         for(int i = 0; i < match.size(); ++i) {
-            printf("%d, ", match[i] == DELETE ? -1 : match[i]);
+            printf("%d ", match[i] == DELETE ? -1 : match[i]);
         }
         printf("\n"); 
     }
@@ -837,6 +839,9 @@ void* run(void* args) {
         }
     }
 
+    pthread_mutex_lock(&running_mutex);
+    running_threads--;
+    pthread_mutex_unlock(&running_mutex);
 #ifdef PRINT_THREAD
     // cerr << "early stop!" << endl;
     printf("thread %d is finished!\n", thread_id);
@@ -924,6 +929,7 @@ int main(int argc, char* argv[]) {
         p = (p + 1) % NUM_THREADS;
     }
 
+    running_threads = NUM_THREADS;
     for(int i = 0 ; i < NUM_THREADS; ++i) {
         task[i].thread_id = i;
         int ret = pthread_create(&tids[i], NULL, run, &task[i]);
@@ -932,17 +938,22 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    this_thread::sleep_for(std::chrono::milliseconds(int((TIMELIMIT - time_before_parallel - EARLY_TERM) * 1e3)));
+    while (running_threads > 0 ) {
+        this_thread::sleep_for(std::chrono::milliseconds(int(0.1 * 1e3)));
+        if ((chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start_point)).count() / 1e3 > TIMELIMIT - time_before_parallel - EARLY_TERM) {
+            break;
+        }
+    }
 
 #endif
 
     pthread_mutex_lock(&ans_mutex);
     final_ans.cur_cost /= 2;
+    printf("%d;", final_ans.cur_cost);
+    printf("%.5lf;",(chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start_point)).count() / 1e3);
     final_ans.print();
-    final_ans.full_match_cost(1);
     pthread_mutex_unlock(&ans_mutex);
 
-    cout << "run time = " << (chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start_point)).count() / 1e3 << "s" << endl;
-
+    
     return 0;
 }
